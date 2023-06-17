@@ -29,7 +29,7 @@
 #include "NomNameRepository.h"
 #include "FunctionTimings.h"
 #include "llvm/ExecutionEngine/Orc/IRTransformLayer.h"
-#include <jitprofiling.h>
+// #include <jitprofiling.h>
 #include "llvm/Object/SymbolSize.h"
 
 using namespace llvm;
@@ -98,14 +98,14 @@ namespace Nom
 						}
 						uint64_t Size = pair.second;
 
-						iJIT_Method_Load jmethod = { 0 };
-						jmethod.method_id = iJIT_GetNewMethodID();
-						jmethod.method_name = const_cast<char*>(Name->data());
-						jmethod.method_load_address = (void*)Addr;
-						jmethod.method_size = Size;
+						// iJIT_Method_Load jmethod = { 0 };
+						// jmethod.method_id = iJIT_GetNewMethodID();
+						// jmethod.method_name = const_cast<char*>(Name->data());
+						// jmethod.method_load_address = (void*)Addr;
+						// jmethod.method_size = Size;
 
-						iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED,
-							(void*)&jmethod);
+						// iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED,
+						// 	(void*)&jmethod);
 						//iJIT_NotifyEvent(iJVM_EVENT_TYPE_SHUTDOWN, NULL);
 					}
 				//}
