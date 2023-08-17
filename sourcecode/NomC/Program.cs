@@ -144,6 +144,14 @@ namespace NomC
                 libraries.Add(librarytcprog);
                 proj.Dependencies.Add(new Nom.Project.NomDependency(libproj.Name, libproj.Version));
             }
+            //TODO not for this project
+            // if(proj.Dependencies.Any())
+            // {
+            //     foreach(var dep in proj.Dependencies)
+            //     {
+            //         libraries.AddRange(loadAssemblyUnits(dep.QName));
+            //     }
+            // }
 
             Nom.Parser.Program parseprog = ParseProgram(proj.Files.Select(f => new FileInfo(di.FullName + "/" + f)));
             Nom.TypeChecker.Program tcprog = TypeCheckProgram(parseprog, proj.Name, libraries);

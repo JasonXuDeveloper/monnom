@@ -69,8 +69,8 @@ namespace Nom.Bytecode
         public virtual void WriteByteCode(Stream ws)
         {
             ws.WriteByte((byte)BytecodeInternalElementType.Method);
-            ws.WriteValue(NameConstant.ConstantID);
-            ws.WriteValue(TypeParametersConstant.ConstantID);
+            ws.WriteValue(NameConstant.ConstantID); //use bcu.GetStringConstant(method.Name) to store external method names
+            ws.WriteValue(TypeParametersConstant.ConstantID); //generic argument type
             ws.WriteValue(ReturnTypeConstant.ConstantID);
             ws.WriteValue(ArgumentTypesConstant.ConstantID);
             ws.WriteByte((byte)(IsFinal ? 1 : 0));
