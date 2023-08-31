@@ -247,9 +247,17 @@ Methods
 {methods}
 """;
 
-        var file = new FileInfo(Path.Combine(output.FullName,
-            $"{className.ToLowerInvariant().Replace(".", "_")}.cpp"));
-        File.WriteAllText(file.FullName, template);
-        Console.WriteLine($"Created file {file.FullName}");
+        var fileName = $"{className.ToLowerInvariant().Replace(".", "_")}";
+        var filePath = Path.Combine(output.FullName,
+            $"{fileName}.cpp");
+        if (File.Exists(filePath))
+        {
+            var backupFile = new FileInfo(Path.Combine(output.FullName,
+                $"{fileName}_{DateTime.Now:yyyyMMddHHmmss}_backup.cpp"));
+            File.Move(filePath, backupFile.FullName);
+            Console.WriteLine($"Renamed file {filePath} to {backupFile.FullName}");
+        }
+        File.WriteAllText(filePath, template);
+        Console.WriteLine($"Created file {filePath}");
     }
 }

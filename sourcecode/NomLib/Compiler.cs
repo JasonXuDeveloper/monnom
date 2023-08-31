@@ -68,7 +68,9 @@ public static class Compiler
             clangProc.StartInfo.Arguments = args;
             clangProc.Start();
             clangProc.WaitForExit();
-            Console.WriteLine($"Compiled {cppFile.Name}.ll");
+            Console.WriteLine(clangProc.ExitCode == 0
+                ? $"Compiled {cppFile.Name}.ll"
+                : $"Failed to compile {cppFile.Name}.ll");
             Console.WriteLine("==================================");
         }
     }
