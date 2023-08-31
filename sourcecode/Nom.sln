@@ -30,6 +30,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MonNomCoreShared", "MonNomC
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MonNomCore", "MonNomCore\MonNomCore.vcxproj", "{4786A8F7-8935-4059-A323-8BEFEC2F1454}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NomLib", "NomLib\NomLib.csproj", "{276EBC34-7E70-431E-A700-1157CBB67604}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		MonNomCoreShared\MonNomCoreShared.vcxitems*{4786a8f7-8935-4059-a323-8befec2f1454}*SharedItemsImports = 4
@@ -237,6 +239,24 @@ Global
 		{4786A8F7-8935-4059-A323-8BEFEC2F1454}.Release-MSVC|x64.Build.0 = Release|x64
 		{4786A8F7-8935-4059-A323-8BEFEC2F1454}.Release-MSVC|x86.ActiveCfg = Release|Win32
 		{4786A8F7-8935-4059-A323-8BEFEC2F1454}.Release-MSVC|x86.Build.0 = Release|Win32
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|x64.Build.0 = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Debug|x86.Build.0 = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|Any CPU.Build.0 = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|x64.ActiveCfg = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|x64.Build.0 = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|x86.ActiveCfg = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release|x86.Build.0 = Release|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|Any CPU.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|Any CPU.Build.0 = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|x64.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|x64.Build.0 = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|x86.ActiveCfg = Debug|Any CPU
+		{276EBC34-7E70-431E-A700-1157CBB67604}.Release-MSVC|x86.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -319,3 +319,4 @@ a.out
 !experiments/higgs/bin/**
 !experiments/reticulated/retic/**
 experiments/higgs/higgscheck/tscontracts/tests
+.DS_Store

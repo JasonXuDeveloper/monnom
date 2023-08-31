@@ -164,8 +164,8 @@ namespace Nom
 				{
 					llvm::Value* argsasarr = builder->CreateAlloca(POINTERTYPE, MakeInt32(argsArrSize), "argarray");
 
-					builder->CreateIntrinsic(llvm::Intrinsic::lifetime_start, { POINTERTYPE }, { MakeInt<size_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * argsArrSize), builder->CreatePointerCast(argsasarr, POINTERTYPE) });
-					for (size_t j = method.Elem->GetArgumentCount() + method.Elem->GetDirectTypeParametersCount() - 1; j >= 2; j--)
+					builder->CreateIntrinsic(llvm::Intrinsic::lifetime_start, { POINTERTYPE }, { MakeInt<int64_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * (int64_t)argsArrSize), builder->CreatePointerCast(argsasarr, POINTERTYPE) });
+					for (int j = method.Elem->GetArgumentCount() + method.Elem->GetDirectTypeParametersCount() - 1; j >= 2; j--)
 					{
 						MakeStore(builder, WrapAsPointer(builder, argarr[j + 1]), builder->CreateGEP(argsasarr->getType(), argsasarr, MakeInt32(j), "arginarray"), AtomicOrdering::NotAtomic);
 					}
@@ -195,8 +195,8 @@ namespace Nom
 					}
 					llvm::Value* argsasarr = builder->CreateAlloca(POINTERTYPE, MakeInt32(argsArrSize), "argarray");
 
-					builder->CreateIntrinsic(llvm::Intrinsic::lifetime_start, { POINTERTYPE }, { MakeInt<size_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * argsArrSize), builder->CreatePointerCast(argsasarr, POINTERTYPE) });
-					for (size_t j = method.Elem->GetArgumentCount() + method.Elem->GetDirectTypeParametersCount() - 1; j >= 2; j--)
+					builder->CreateIntrinsic(llvm::Intrinsic::lifetime_start, { POINTERTYPE }, { MakeInt<int64_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * (int64_t)argsArrSize), builder->CreatePointerCast(argsasarr, POINTERTYPE) });
+					for (int j = method.Elem->GetArgumentCount() + method.Elem->GetDirectTypeParametersCount() - 1; j >= 2; j--)
 					{
 						MakeStore(builder, WrapAsPointer(builder, argarr[j + 1]), builder->CreateGEP(argsasarr->getType(), argsasarr, MakeInt32(j), "arginarray"), AtomicOrdering::NotAtomic);
 					}
@@ -235,7 +235,7 @@ namespace Nom
 				RegisterValue(env, RTValue::GetValue(builder, result, method.Elem->GetReturnType(&nscl), true));
 				if (invariantID != nullptr)
 				{
-					builder->CreateIntrinsic(llvm::Intrinsic::invariant_end, { POINTERTYPE }, { invariantID, MakeInt<size_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * argsArrSize), argarr[RTConfig_NumberOfVarargsArguments + 1] });
+					builder->CreateIntrinsic(llvm::Intrinsic::invariant_end, { POINTERTYPE }, { invariantID, MakeInt<int64_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * (int64_t)argsArrSize), argarr[RTConfig_NumberOfVarargsArguments + 1] });
 					//builder->CreateIntrinsic(llvm::Intrinsic::lifetime_end, { POINTERTYPE }, { MakeInt<int64_t>(GetNomJITDataLayout().getTypeAllocSize(POINTERTYPE) * argsArrSize), argarr[RTConfig_NumberOfVarargsArguments + 1] });
 				}
 			}

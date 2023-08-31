@@ -1,4 +1,5 @@
 #include "CharStream.h"
+#include <string>
 
 namespace Nom
 {

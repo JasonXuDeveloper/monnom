@@ -89,8 +89,19 @@ namespace Nom
 		template<typename T>
 		PWCInt32 MakeInt32(T val)
 		{
-			static_assert(sizeof(std::underlying_type_t<T>) == sizeof(unsigned char), "This is definitely not a correct enum");
-			return MakeInt32(static_cast<uint32_t>(static_cast<std::underlying_type_t<T>>(val)));
+			if (sizeof(T) == sizeof(unsigned char))
+			{
+							return MakeInt32((uint32_t)((unsigned char)val));
+			}
+			else if (sizeof(T) == sizeof(int32_t))
+			{
+							return MakeInt32((int64_t)val);
+			}
+			else if (sizeof(T) == sizeof(uint64_t))
+			{
+							return MakeInt32((uint64_t)val);
+			}
+			//static_assert(sizeof(T) == sizeof(unsigned char), "This is definitely not a correct enum");
 		}
 		llvm::ConstantInt* MakeInt(size_t size, uint64_t val);
 		llvm::ConstantInt* MakeIntLike(llvm::Value* value, uint64_t val);
