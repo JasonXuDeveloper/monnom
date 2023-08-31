@@ -26,6 +26,11 @@
 #include "RTOutput.h"
 #include "Metadata.h"
 #include "StructuralValueHeader.h"
+#include "PWClass.h"
+#include "PWRefValue.h"
+#include "PWTypeArr.h"
+#include "PWInterface.h"
+#include "PWSuperInstance.h"
 
 using namespace llvm;
 namespace Nom
@@ -59,7 +64,7 @@ namespace Nom
 		}
 		NomClassType::InitFunctionPointer NomClassType::GetCPPInitializerFunction()
 		{
-			return (InitFunctionPointer)((intptr_t)(NomJIT::Instance().lookup("RT_NOM_ClassTypeInitializer")->getAddress()));
+			return reinterpret_cast<InitFunctionPointer>(NomJIT::Instance().lookup("RT_NOM_ClassTypeInitializer")->getValue());
 		}
 		llvm::Function * NomClassType::GetInitializerFunction(llvm::Module & mod)
 		{
@@ -84,10 +89,10 @@ namespace Nom
 				BasicBlock *retBlock = BasicBlock::Create(LLVMCONTEXT, "", fun);
 
 				builder->SetInsertPoint(mainBlock);
-				StoreInst *store = MakeStore(builder,mod, MakeInt((unsigned char)TypeKind::TKClass), builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head), MakeInt32((unsigned char)RTTypeHeadFields::Kind) }));
-				store = MakeStore(builder,mod, hash, builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head), MakeInt32((unsigned char)RTTypeHeadFields::Hash) }));
-				store = MakeStore(builder,mod, nomtype, builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head), MakeInt32((unsigned char)RTTypeHeadFields::NomType) }));
-				store = MakeStore(builder,mod, builder->CreatePointerCast(clspointer, RTInterface::GetLLVMType()->getPointerTo()),  builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Class) }));
+				MakeStore(builder, MakeInt((TypeKind::TKClass)), builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, { MakeInt32(0), MakeInt32((RTClassTypeFields::Head)), MakeInt32((RTTypeHeadFields::Kind)) }));
+				MakeStore(builder, hash, builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, { MakeInt32(0), MakeInt32((RTClassTypeFields::Head)), MakeInt32((RTTypeHeadFields::Hash)) }));
+				MakeStore(builder, nomtype, builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, { MakeInt32(0), MakeInt32((RTClassTypeFields::Head)), MakeInt32((RTTypeHeadFields::NomType)) }));
+				MakeStore(builder, clspointer, builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, { MakeInt32(0), MakeInt32((RTClassTypeFields::Class)) }));
 				builder->CreateBr(loopHead);
 
 				builder->SetInsertPoint(loopHead);
@@ -98,12 +103,12 @@ namespace Nom
 				builder->SetInsertPoint(loop);
 				Value *index = builder->CreateSub(phi, MakeInt<int>(1));
 				phi->addIncoming(index, loop);
-				LoadInst *load = MakeLoad(builder,mod,builder->CreateGEP(argsarr, index));
-				store = MakeStore(builder,mod, load, builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::TypeArgs), builder->CreateNeg(phi) }));
+				LoadInst *load = MakeLoad(builder,TYPETYPE, builder->CreateGEP(arrtype(TYPETYPE,0), argsarr, index));
+				MakeStore(builder, load, builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, {MakeInt32(0), MakeInt32((RTClassTypeFields::TypeArgs)), builder->CreateNeg(phi)}));
 				builder->CreateBr(loopHead);
 
 				builder->SetInsertPoint(retBlock);
-				builder->CreateRet(builder->CreateGEP(ctypepointer, { MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head) }));
+				builder->CreateRet(builder->CreateGEP(RTClassType::GetLLVMType(), ctypepointer, { MakeInt32(0), MakeInt32((RTClassTypeFields::Head)) }));
 			}
 			return fun;
 		}
@@ -131,7 +136,7 @@ namespace Nom
 			return true;
 		}
 
-		static const std::string gnprefix = "RT_NOM_CLASSTYPE_";
+		[[clang::no_destroy]] static const std::string gnprefix = "RT_NOM_CLASSTYPE_";
 
 		NomClassType::NomClassType(const NomNamed *named, const llvm::ArrayRef<NomTypeRef> arguments) : NomType(), GloballyNamed(&gnprefix), id(Count()), head(), Named(named), Arguments(arguments)
 		{
@@ -143,7 +148,7 @@ namespace Nom
 		{
 			return other->IsSupertype(this, optimistic);
 		}
-		bool NomClassType::IsSubtype(NomBottomTypeRef other, bool optimistic) const
+		bool NomClassType::IsSubtype([[maybe_unused]] NomBottomTypeRef other, [[maybe_unused]] bool optimistic) const
 		{
 			return false;
 		}
@@ -154,7 +159,7 @@ namespace Nom
 				return ArgumentsSubtypes(Arguments, other->Arguments, optimistic);
 			}
 			NomSubstitutionContextList nscl(Arguments);
-			for (auto super : Named->GetSuperNameds(Arguments))
+			for (auto super : Named->GetSuperNameds())
 			{
 				if (super->SubstituteSubtyping(&nscl)->IsSubtype(other, optimistic))
 				{
@@ -163,11 +168,7 @@ namespace Nom
 			}
 			return false;
 		}
-		//bool NomClassType::IsSubtype(NomUnionTypeRef other, bool optimistic) const
-		//{
-		//	return other->IsSupertype(this);
-		//}
-		bool NomClassType::IsSubtype(NomTopTypeRef other, bool optimistic) const
+		bool NomClassType::IsSubtype([[maybe_unused]] NomTopTypeRef other, [[maybe_unused]] bool optimistic) const
 		{
 			return true;
 		}
@@ -179,7 +180,7 @@ namespace Nom
 		{
 			return other->IsSubtype(this, optimistic);
 		}
-		bool NomClassType::IsSupertype(NomBottomTypeRef other, bool optimistic) const
+		bool NomClassType::IsSupertype([[maybe_unused]] NomBottomTypeRef other, [[maybe_unused]] bool optimistic) const
 		{
 			return true;
 		}
@@ -187,7 +188,7 @@ namespace Nom
 		{
 			return other->IsSubtype(this, optimistic);
 		}
-		bool NomClassType::IsSupertype(NomTopTypeRef other, bool optimistic) const
+		bool NomClassType::IsSupertype([[maybe_unused]] NomTopTypeRef other, [[maybe_unused]] bool optimistic) const
 		{
 			return false;
 		}
@@ -283,21 +284,21 @@ namespace Nom
 					NomBuilder builder;
 					builder->SetInsertPoint(startBlock);
 					auto argiter = fun->arg_begin();
-					Value* self = argiter;
+					auto self = PWRefValue(argiter);
 					argiter++;
-					Value* castedValue = argiter;
+					auto castedValue = PWRefValue(argiter);
 
 					BasicBlock* failBlock = RTOutput_Fail::GenerateFailOutputBlock(builder, "Cast Failed!");
 					BasicBlock* successBlock = BasicBlock::Create(LLVMCONTEXT, "success", fun);
 
 					BasicBlock* refValueBlock = nullptr, *intBlock = nullptr, * floatBlock = nullptr;
-					RefValueHeader::GenerateRefOrPrimitiveValueSwitch(builder, castedValue, &refValueBlock, &intBlock, &floatBlock, false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+					castedValue.AsNomValue().GenerateRefOrPrimitiveValueSwitch(builder, &refValueBlock, &intBlock, &floatBlock, false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
 					if (refValueBlock != nullptr)
 					{
 						builder->SetInsertPoint(refValueBlock);
-						auto vtable = RefValueHeader::GenerateReadVTablePointer(builder, castedValue);
-						auto clsptr = RTClass::GetInterfaceReference(builder, vtable);
+						auto vtable = castedValue.ReadVTable(builder);
+						auto clsptr = PWClass::FromVTable(vtable).GetInterface(builder);
 						if (!this->Named->IsInterface())
 						{
 							BasicBlock* directMatchBlock = BasicBlock::Create(LLVMCONTEXT, "directClassMatch", fun);
@@ -308,7 +309,7 @@ namespace Nom
 							builder->SetInsertPoint(directMatchBlock);
 							if (this->Arguments.size() != 0)
 							{
-								int argpos = 0;
+								size_t argpos = 0;
 								for (auto& arg : this->Arguments)
 								{
 									BasicBlock* nextBlock = BasicBlock::Create(LLVMCONTEXT, "next", fun);
@@ -336,9 +337,9 @@ namespace Nom
 							{
 								foundMatchBlock = BasicBlock::Create(LLVMCONTEXT, "foundMatch", fun);
 								builder->SetInsertPoint(foundMatchBlock);
-								typeArgsPHI = builder->CreatePHI(SuperInstanceEntryType()->getPointerTo(), 2, "matchingEntry");
+								typeArgsPHI = builder->CreatePHI(NLLVMPointer(SuperInstanceEntryType()), 2, "matchingEntry");
 								auto origTypeArgs = ObjectHeader::GeneratePointerToTypeArguments(builder, castedValue);
-								auto typeArgs = MakeInvariantLoad(builder, typeArgsPHI, MakeInt32(SuperInstanceEntryFields::TypeArgs), "typeArgs", AtomicOrdering::NotAtomic);
+								auto typeArgs = PWTypeArr(MakeInvariantLoad(builder, SuperInstanceEntryType(), typeArgsPHI, MakeInt32(SuperInstanceEntryFields::TypeArgs), "typeArgs", AtomicOrdering::NotAtomic));
 								auto typeEqFun = RTTypeEq::Instance(false).GetLLVMElement(mod);
 								RTSubstStackValue rssv = RTSubstStackValue(builder, origTypeArgs);
 								BasicBlock* outBlock[2];
@@ -346,8 +347,8 @@ namespace Nom
 								int pos = 0;
 								for (auto& arg : this->Arguments)
 								{
-									auto targ = MakeInvariantLoad(builder, builder->CreateGEP(typeArgs, MakeInt32(-(pos + 1)) ), "typeArg", AtomicOrdering::NotAtomic);
-									auto isTypeEq = builder->CreateCall(RTTypeEq::GetLLVMFunctionType(false), typeEqFun, { targ, rssv, arg->GetLLVMElement(mod), ConstantPointerNull::get(RTSubstStack::GetLLVMType()->getPointerTo()) });
+									auto targ = MakeInvariantLoad(builder, arrtype(TYPETYPE,0), typeArgs, MakeInt32(-(pos + 1)), "typeArg", AtomicOrdering::NotAtomic);
+									auto isTypeEq = builder->CreateCall(RTTypeEq::GetLLVMFunctionType(false), typeEqFun, llvm::ArrayRef<llvm::Value*>({ targ, rssv.operator*(), arg->GetLLVMElement(mod), ConstantPointerNull::get(NLLVMPointer(RTSubstStack::GetLLVMType()))}));
 									isTypeEq->setCallingConv(NOMCC);
 									CreateExpect(builder, isTypeEq, MakeUInt(1, 1));
 
@@ -367,8 +368,8 @@ namespace Nom
 							}
 							if (this->Named->IsInterface())
 							{
-								auto supercount = RTInterface::GenerateReadSuperInterfaceCount(builder, clsptr);
-								auto supers = RTInterface::GenerateReadSuperInterfaces(builder, clsptr);
+								auto supercount = clsptr.ReadSuperInterfaceCount(builder);
+								auto supers = clsptr.ReadSuperInterfaces(builder);
 								BasicBlock* loopHeadBlock = BasicBlock::Create(LLVMCONTEXT, "findInterfaceMatch$head", fun);
 								BasicBlock* loopBodyBlock = BasicBlock::Create(LLVMCONTEXT, "findInterfaceMatch$body", fun);
 								auto origBlock = builder->GetInsertBlock();
@@ -383,8 +384,8 @@ namespace Nom
 								builder->CreateCondBr(stillEntriesLeft, loopBodyBlock, failBlock, GetLikelyFirstBranchMetadata());
 
 								builder->SetInsertPoint(loopBodyBlock);
-								auto entry = builder->CreateGEP(supers, posPHI);
-								auto superIface = MakeInvariantLoad(builder, builder->CreateGEP(entry, { MakeInt32(0), MakeInt32(SuperInstanceEntryFields::Class) }), "superInterface", AtomicOrdering::NotAtomic);
+								auto entry = supers.GetEntry(builder, posPHI);
+								auto superIface = MakeInvariantLoad(builder, entry.GetLLVMType(), entry, MakeInt32(SuperInstanceEntryFields::Class), "superInterface", AtomicOrdering::NotAtomic);
 								auto superMatch = CreatePointerEq(builder, superIface, this->Named->GetInterfaceDescriptor(mod));
 								posPHI->addIncoming(builder->CreateAdd(posPHI, MakeIntLike(posPHI, 1)), builder->GetInsertBlock());
 								builder->CreateCondBr(superMatch, foundMatchBlock, loopHeadBlock);
@@ -395,17 +396,17 @@ namespace Nom
 							}
 							else
 							{
-								auto supers = RTInterface::GenerateReadSuperInstances(builder, clsptr);
+								auto supers = clsptr.ReadSuperInstances(builder);
 								BasicBlock* checkSuperClassBlock = BasicBlock::Create(LLVMCONTEXT, "checkSuperClass", fun);
-								auto supercount = RTInterface::GenerateReadSuperClassCount(builder, clsptr);
+								auto supercount = clsptr.ReadSuperClassCount(builder);
 								auto superIndex = MakeIntLike(supercount, this->Named->GetSuperClassCount());
 								auto lessThan = builder->CreateICmpULT(superIndex, supercount);
 								CreateExpect(builder, lessThan, MakeUInt(1, 1));
 								builder->CreateCondBr(lessThan, checkSuperClassBlock, failBlock, GetLikelyFirstBranchMetadata());
 
 								builder->SetInsertPoint(checkSuperClassBlock);
-								auto entry = builder->CreateGEP(supers, superIndex);
-								auto superClass = MakeInvariantLoad(builder, builder->CreateGEP(entry, { MakeInt32(0), MakeInt32(SuperInstanceEntryFields::Class) }), "superClass", AtomicOrdering::NotAtomic);
+								auto entry = supers.GetEntry(builder, superIndex);
+								auto superClass = MakeInvariantLoad(builder, entry.GetLLVMType(), entry, MakeInt32(SuperInstanceEntryFields::Class), "superClass", AtomicOrdering::NotAtomic);
 								auto superMatch = CreatePointerEq(builder, superClass, this->Named->GetInterfaceDescriptor(mod));
 								CreateExpect(builder, lessThan, MakeUInt(1, 1));
 								builder->CreateCondBr(superMatch, foundMatchBlock, failBlock, GetLikelyFirstBranchMetadata());
@@ -462,7 +463,7 @@ namespace Nom
 				funptr = ConstantPointerNull::get(GetCastFunctionType()->getPointerTo());
 			}
 			gv->setInitializer(RTClassType::GetConstant(mod, this, funptr));
-			return llvm::ConstantExpr::getGetElementPtr(gv->getType()->getElementType(), gv, llvm::ArrayRef<llvm::Constant *>({ MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head) }));
+			return llvm::ConstantExpr::getGetElementPtr(ttt, gv, llvm::ArrayRef<llvm::Constant *>({ MakeInt32(0), MakeInt32((RTClassTypeFields::Head)) }));
 		}
 
 		llvm::Value * NomClassType::GenerateRTInstantiation(NomBuilder& builder, CompileEnv* env) const
@@ -473,10 +474,10 @@ namespace Nom
 				argarr[0] = this->Named->GetLLVMElement(*(env->Module));
 				if (this->Arguments.size() > 0)
 				{
-					llvm::AllocaInst *typesarr = builder->CreateAlloca(RTTypeHead::GetLLVMType()->getPointerTo(), MakeInt<int32_t>(this->Arguments.size()));
+					llvm::AllocaInst *typesarr = builder->CreateAlloca(TYPETYPE, MakeInt32(this->Arguments.size()));
 					for (size_t i = 0; i < this->Arguments.size(); i++)
 					{
-						MakeStore(builder,(*(env->Module)), this->Arguments[i]->GenerateRTInstantiation(builder, env), builder->CreateGEP(typesarr, MakeInt<int32_t>(i)));
+						MakeStore(builder, this->Arguments[i]->GenerateRTInstantiation(builder, env), builder->CreateGEP(TYPETYPE, typesarr, MakeInt32(i)));
 					}
 					argarr[1] = typesarr;
 				}
@@ -490,35 +491,18 @@ namespace Nom
 		}
 		llvm::Constant * NomClassType::findLLVMElement(llvm::Module & mod) const
 		{
+			llvm::StructType* ttt = RTClassType::GetLLVMType(this->Arguments.size());
 			llvm::SmallVector<char, 32> buf;
 			auto var = mod.getGlobalVariable(GetGlobalName());
 			if (var == nullptr)
 			{
 				return var;
 			}
-			return llvm::ConstantExpr::getGetElementPtr(var->getType()->getElementType(), var, llvm::ArrayRef<llvm::Constant *>({MakeInt32(0), MakeInt32((unsigned char)RTClassTypeFields::Head)}));
+			return llvm::ConstantExpr::getGetElementPtr(ttt, var, llvm::ArrayRef<llvm::Constant *>({MakeInt32(0), MakeInt32((RTClassTypeFields::Head))}));
 		}
-		intptr_t NomClassType::GetRTElement() const
+		uintptr_t NomClassType::GetRTElement() const
 		{
 			throw new std::exception();
-			//if (head.Entry() != nullptr)
-			//{
-			//	return reinterpret_cast<intptr_t>(head.Entry());
-			//}
-			//if (auto var = NomJIT::Instance().lookup(GetGlobalName())->getAddress())
-			//{
-			//	intptr_t ret = (var) + RTClassType::HeadOffset();
-			//	head = RTTypeHead((void *)ret);
-			//	return ret;
-			//}
-			//auto mmod = GetMainModule();
-			//if (mmod != nullptr)
-			//{
-			//	throw new std::exception();
-			//}
-			//void * rtct = (nmalloc(RTClassType::SizeOf()+sizeof(intptr_t *)*this->Arguments.size()));
-			//auto initfun = GetCPPInitializerFunction();
-			//return (intptr_t)initfun(rtct, (void*) this->Named->GetRTElement(), this->GetHashCode(), this, this->Arguments.size(), this->Arguments.data());
 		}
 		NomClassTypeRef NomClassType::GetClassInstantiation(const NomNamed * named) const
 		{
@@ -527,9 +511,11 @@ namespace Nom
 				return this;
 			}
 			NomClassTypeRef ret = nullptr;
-			for (auto snamed : this->Named->GetSuperNameds(this->Arguments))
+			for (auto snamed : this->Named->GetSuperNameds())
 			{
-				auto super = snamed->GetClassInstantiation(named);
+				NomSubstitutionContextList nsc = NomSubstitutionContextList(this->Arguments);
+				auto ssnamned = snamed->SubstituteSubtyping(&nsc);
+				auto super = ssnamned->GetClassInstantiation(named);
 				if (super != nullptr)
 				{
 					if (ret == nullptr)
@@ -546,7 +532,7 @@ namespace Nom
 		{
 			return other->IsDisjoint(this);
 		}
-		bool NomClassType::IsDisjoint(NomBottomTypeRef other) const
+		bool NomClassType::IsDisjoint([[maybe_unused]] NomBottomTypeRef other) const
 		{
 			return true;
 		}
@@ -558,7 +544,7 @@ namespace Nom
 			}
 			return false;
 		}
-		bool NomClassType::IsDisjoint(NomTopTypeRef other) const
+		bool NomClassType::IsDisjoint([[maybe_unused]] NomTopTypeRef other) const
 		{
 			return false;
 		}
@@ -566,11 +552,11 @@ namespace Nom
 		{
 			return other->IsDisjoint(this);
 		}
-		bool NomClassType::IsSubtype(NomDynamicTypeRef other, bool optimistic) const
+		bool NomClassType::IsSubtype([[maybe_unused]] NomDynamicTypeRef other, [[maybe_unused]] bool optimistic) const
 		{
 			return true;
 		}
-		bool NomClassType::IsSupertype(NomDynamicTypeRef other, bool optimistic) const
+		bool NomClassType::IsSupertype([[maybe_unused]] NomDynamicTypeRef other, bool optimistic) const
 		{
 			return optimistic;
 		}
@@ -612,7 +598,7 @@ namespace Nom
 			//}
 			return TypeReferenceType::Reference; //llvm::StructType::create(LLVMCONTEXT)->getPointerTo();
 		}
-		bool NomClassType::ContainsVariableIndex(int index) const
+		bool NomClassType::ContainsVariableIndex(size_t index) const
 		{
 			for (auto& arg : Arguments)
 			{
@@ -628,7 +614,7 @@ namespace Nom
 
 using namespace Nom::Runtime;
 
-extern "C" intptr_t NOM_RTInstantiateClass(intptr_t cls, intptr_t *args)
+extern "C" uintptr_t NOM_RTInstantiateClass(intptr_t cls, intptr_t *args)
 {
 	NomClass *ncls = reinterpret_cast<NomClass *>(cls);
 	NomTypeRef *argtypes = reinterpret_cast<NomTypeRef *>(args);

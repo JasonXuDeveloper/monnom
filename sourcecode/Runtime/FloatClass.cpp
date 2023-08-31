@@ -17,6 +17,14 @@
 #include "CompileHelpers.h"
 #include "RefValueHeader.h"
 
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wfloat-equal"
+#elif defined(__GCC__)
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#elif defined(_MSC_VER)
+
+#endif
+
 
 extern "C" DLLEXPORT const void* LIB_NOM_Float_ToString_1(const double value)
 {
@@ -26,7 +34,7 @@ extern "C" DLLEXPORT const void* LIB_NOM_Float_ToString_1(const double value)
 	return nomstring->GetStringObject();
 }
 
-extern "C" DLLEXPORT const int64_t LIB_NOM_Float_Compare_1(const double value, const double other)
+extern "C" DLLEXPORT int64_t LIB_NOM_Float_Compare_1(const double value, const double other)
 {
 	if (value == other)
 	{
@@ -46,17 +54,17 @@ namespace Nom
 {
 	namespace Runtime
 	{
-		NomFloatClass::NomFloatClass() : NomInterface("Float_0"), NomClassInternal(new NomString("Float_0"))
+		NomFloatClass::NomFloatClass() : NomInterface(), NomClassInternal(new NomString("Float_0"))
 		{
 			SetDirectTypeParameters();
 			SetSuperClass(NomInstantiationRef<NomClass>(NomObjectClass::GetInstance(), TypeList()));
-			llvm::sys::DynamicLibrary::AddSymbol("LIB_NOM_Float_ToString_1", (void*)&LIB_NOM_Float_ToString_1);
-			llvm::sys::DynamicLibrary::AddSymbol("LIB_NOM_Float_Compare_1", (void*)&LIB_NOM_Float_Compare_1);
+			llvm::sys::DynamicLibrary::AddSymbol("LIB_NOM_Float_ToString_1", reinterpret_cast<void*>(& LIB_NOM_Float_ToString_1));
+			llvm::sys::DynamicLibrary::AddSymbol("LIB_NOM_Float_Compare_1", reinterpret_cast<void*>(&LIB_NOM_Float_Compare_1));
 		}
 
 
 		NomFloatClass* NomFloatClass::GetInstance() {
-			static NomFloatClass nfc;
+			[[clang::no_destroy]] static NomFloatClass nfc;
 
 			static bool once = true;
 			if (once)
@@ -106,13 +114,13 @@ namespace Nom
 		llvm::Constant* NomFloatObjects::GetPosZero(llvm::Module& mod)
 		{
 			auto elem = GetInstance()->GetLLVMElement(mod);
-			return llvm::ConstantExpr::getPointerCast(llvm::ConstantExpr::getGetElementPtr(((PointerType*)elem->getType())->getElementType(), elem, llvm::ArrayRef<llvm::Constant*>({ {MakeInt32(0), MakeInt32(0), MakeInt32(ObjectHeaderFields::RefValueHeader)} })), REFTYPE);
+			return llvm::ConstantExpr::getPointerCast(llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), elem, llvm::ArrayRef<llvm::Constant*>({{MakeInt32(0), MakeInt32(0), MakeInt32(ObjectHeaderFields::RefValueHeader)}})), REFTYPE);
 		}
 
 		llvm::Constant* NomFloatObjects::GetNegZero(llvm::Module& mod)
 		{
 			auto elem = GetInstance()->GetLLVMElement(mod);
-			return llvm::ConstantExpr::getPointerCast(llvm::ConstantExpr::getGetElementPtr(((PointerType*)elem->getType())->getElementType(), elem, llvm::ArrayRef<llvm::Constant*>({ {MakeInt32(0), MakeInt32(1), MakeInt32(ObjectHeaderFields::RefValueHeader)} })), REFTYPE);
+			return llvm::ConstantExpr::getPointerCast(llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), elem, llvm::ArrayRef<llvm::Constant*>({ {MakeInt32(0), MakeInt32(1), MakeInt32(ObjectHeaderFields::RefValueHeader)} })), REFTYPE);
 		}
 
 
@@ -127,8 +135,8 @@ namespace Nom
 			var->setAlignment(llvm::MaybeAlign(8));
 			var->setInitializer(arr);
 
-			auto varPosZero = new llvm::GlobalVariable(mod, RefValueHeader::GetLLVMType()->getPointerTo(), true, linkage, llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), var, llvm::ArrayRef<llvm::Constant*>({ MakeInt32(0), MakeInt32(0),MakeInt32(ObjectHeaderFields::RefValueHeader) })), "RT_NOM_POSZERO");
-			auto varNegZero = new llvm::GlobalVariable(mod, RefValueHeader::GetLLVMType()->getPointerTo(), true, linkage, llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), var, llvm::ArrayRef<llvm::Constant*>({ MakeInt32(0), MakeInt32(1),MakeInt32(ObjectHeaderFields::RefValueHeader) })), "RT_NOM_NEGZERO");
+			new llvm::GlobalVariable(mod, RefValueHeader::GetLLVMType()->getPointerTo(), true, linkage, llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), var, llvm::ArrayRef<llvm::Constant*>({ MakeInt32(0), MakeInt32(0),MakeInt32(ObjectHeaderFields::RefValueHeader) })), "RT_NOM_POSZERO");
+			new llvm::GlobalVariable(mod, RefValueHeader::GetLLVMType()->getPointerTo(), true, linkage, llvm::ConstantExpr::getGetElementPtr(arrtype(ObjectHeader::GetLLVMType(1, 0, false), 2), var, llvm::ArrayRef<llvm::Constant*>({ MakeInt32(0), MakeInt32(1),MakeInt32(ObjectHeaderFields::RefValueHeader) })), "RT_NOM_NEGZERO");
 			return var;
 		}
 

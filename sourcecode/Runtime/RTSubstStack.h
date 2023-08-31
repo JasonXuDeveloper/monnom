@@ -1,6 +1,8 @@
 #pragma once
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+POPDIAGSUPPRESSION
 #include "NomBuilder.h"
 
 namespace Nom
@@ -21,7 +23,7 @@ namespace Nom
 			RTSubstStackValue(NomBuilder& builder, llvm::Value* typelist, llvm::Value* previousStack = nullptr, llvm::ConstantInt* typeListSize = nullptr, llvm::Value* typeListOrigPtr = nullptr);
 			RTSubstStackValue(RTSubstStackValue& other) = delete;
 			RTSubstStackValue(RTSubstStackValue&& other) = default;
-			~RTSubstStackValue();
+			~RTSubstStackValue() noexcept(false);
 			llvm::Value* operator*()
 			{
 				return stack;
@@ -32,11 +34,6 @@ namespace Nom
 			}
 
 			void MakeTypeListInvariant(NomBuilder& builder);
-
-			operator llvm::Value* ()
-			{
-				return stack;
-			}
 
 			void MakeReleaseBlocks(NomBuilder& builder, llvm::BasicBlock* targetBlock1, llvm::BasicBlock** newTargetBlock1, llvm::BasicBlock* targetBlock2 = nullptr, llvm::BasicBlock** newTargetBlock2 = nullptr, llvm::BasicBlock* targetBlock3 = nullptr, llvm::BasicBlock** newTargetBlock3 = nullptr);
 			void MakeRelease(NomBuilder& builder);

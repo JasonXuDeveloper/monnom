@@ -17,7 +17,7 @@ namespace Nom
 		ConstructStructInstruction::ConstructStructInstruction(RegIndex reg, ConstantID structure, ConstantID typeArgs) : NomValueInstruction(reg, OpCode::ConstructStruct), StructureID(structure), TypeArgsID(typeArgs)
 		{
 		}
-		void ConstructStructInstruction::Compile(NomBuilder& builder, CompileEnv* env, int lineno)
+		void ConstructStructInstruction::Compile(NomBuilder& builder, CompileEnv* env, [[maybe_unused]] size_t lineno)
 		{
 			NomRecord* structure = NomConstants::GetRecord(StructureID)->GetRecord();
 			auto targcount = structure->GetDirectTypeParametersCount();
@@ -32,15 +32,15 @@ namespace Nom
 				auto tparam = typeArgs[i]->GetLLVMElement(*builder->GetInsertBlock()->getParent()->getParent());
 				argbuf[i] = tparam;
 			}
-			for (int i = 0; i < env->GetArgCount(); i++)
+			for (size_t i = 0; i < env->GetArgCount(); i++)
 			{
-				NomValue nv = env->GetArgument(i);
-				argbuf[i+ targcount] = EnsureType(builder, env, nv, argtypes[i], cft->getParamType(i+targcount));
+				RTValuePtr nv = env->GetArgument(i);
+				argbuf[i+ targcount] = nv->EnsureType(builder, env, argtypes[i], cft->getParamType(static_cast<unsigned int>(i+targcount)));
 			}
 			auto callinst = builder->CreateCall(constructorFun, llvm::ArrayRef<llvm::Value*>(argbuf, env->GetArgCount()+targcount), "struct");
 			callinst->setCallingConv(NOMCC);
 			env->ClearArguments();
-			RegisterValue(env, NomValue(callinst, &NomDynamicType::Instance(), true));
+			RegisterValue(env, RTValue::GetValue(builder, callinst, &NomDynamicType::Instance(), true));
 		}
 		void ConstructStructInstruction::Print(bool resolve)
 		{

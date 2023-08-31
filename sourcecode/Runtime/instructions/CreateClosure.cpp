@@ -1,6 +1,8 @@
 #include "CreateClosure.h"
-#include "../NomAlloc.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Function.h"
+POPDIAGSUPPRESSION
+#include "../NomAlloc.h"
 #include "../NomVMInterface.h"
 #include "../NomLambda.h"
 #include "../NomConstants.h"
@@ -20,7 +22,7 @@ namespace Nom
 		CreateClosure::CreateClosure(RegIndex reg, ConstantID lambda, ConstantID typeArgs) : NomValueInstruction(reg, OpCode::CreateClosure), Lambda(lambda), TypeArgsID(typeArgs)
 		{
 		}
-		void CreateClosure::Compile(NomBuilder& builder, CompileEnv* env, int lineno)
+		void CreateClosure::Compile(NomBuilder& builder, CompileEnv* env, [[maybe_unused]] size_t lineno)
 		{
 			NomLambda* lambda = NomConstants::GetLambda(Lambda)->GetLambda();
 			auto targcount = lambda->GetTypeParametersCount();
@@ -37,16 +39,16 @@ namespace Nom
 				argbuf[i] = tparam;
 			}
 
-			for (int i = 0; i < env->GetArgCount(); i++)
+			for (size_t i = 0; i < env->GetArgCount(); i++)
 			{
-				NomValue nv = env->GetArgument(i);
-				argbuf[i+targcount] = EnsureType(builder, env, nv, argtypes[i], cft->getParamType(i+targcount));
+				RTValuePtr nv = env->GetArgument(i);
+				argbuf[i+targcount] = nv->EnsureType(builder, env, argtypes[i], cft->getParamType(static_cast<unsigned int>(i+targcount)));
 				//argbuf[i] = env->GetArgument(i);
 			}
 			auto callinst = builder->CreateCall(constructorFun, llvm::ArrayRef<llvm::Value*>(argbuf, env->GetArgCount()+targcount), "closure");
 			callinst->setCallingConv(NOMCC);
 			env->ClearArguments();
-			RegisterValue(env, NomValue(callinst, &NomDynamicType::Instance(), true));
+			RegisterValue(env, RTValue::GetValue(builder, callinst, &NomDynamicType::Instance(), true));
 		}
 		void CreateClosure::Print(bool resolve)
 		{

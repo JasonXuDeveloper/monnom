@@ -1,16 +1,19 @@
 #pragma once
-#include <string>
-#include "BoehmAtomicAllocator.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/IRBuilder.h"
+POPDIAGSUPPRESSION
+#include <string>
+#include "BoehmAtomicAllocator.h"
 #include "Context.h"
 #include "CharStream.h"
 #include "NomValue.h"
 #include <limits>
 #include <type_traits>
+#include "DLLExport.h"
 
 #define BITSINABYTE 8
 #define bitsin(t) (sizeof(t) * BITSINABYTE)
@@ -29,11 +32,11 @@
 #define NOM_CONSTANT_DEPENCENCY_CONTAINER llvm::SmallVector<Nom::Runtime::ConstantID, 16>
 
 #ifdef _WIN32
-#define makealloca(t,n) ((t *)((n)>0?(_malloca(sizeof(t)*(n))):nullptr))
+#define makealloca(t,n) (static_cast<t *>((n)>0?(_malloca(sizeof(t)*static_cast<size_t>(n))):nullptr))
 #else
-#define makealloca(t,n) ((t *)((n)>0?(alloca(sizeof(t)*(n))):nullptr))
+#define makealloca(t,n) (static_cast<t *>((n)>0?(alloca(sizeof(t)*static_cast<size_t>(n))):nullptr))
 #endif
-#define nullarray(t) (::llvm::ArrayRef<t>(static_cast<t *>(nullptr),(size_t)0))
+#define nullarray(t) (::llvm::ArrayRef<t>(static_cast<t *>(nullptr),static_cast<size_t>(0)))
 #define notnullarray(t, arr, n) (::llvm::ArrayRef<t>((arr==nullptr?reinterpret_cast<t *>(this) : (arr)), (arr==nullptr?0:(n))))
 
 
@@ -41,7 +44,109 @@ namespace Nom
 {
 	namespace Runtime
 	{
-		using RegIndex = int;
+		class NLLVMPointer
+		{
+		private:
+			llvm::Type* const target;
+		public:
+			NLLVMPointer(llvm::Type* tgt) : target(tgt)
+			{
+			}
+			inline bool operator==(const NLLVMPointer& other) const
+			{
+				return target==other.target;
+			}
+			inline llvm::PointerType* operator->() const
+			{
+				return llvm::PointerType::get(target->getContext(), 0);
+			}
+			inline operator llvm::PointerType*() const
+			{
+				return llvm::PointerType::get(target->getContext(), 0);
+			}
+			inline llvm::Type* GetTargetType() const
+			{
+				return target;
+			}
+			llvm::PointerType* AsLLVMType() const
+			{
+				return llvm::PointerType::get(target->getContext(), 0);
+			}
+		};
+		class NLLVMPointerArr
+		{
+		private:
+			llvm::Type* const target;
+			const uint64_t size;
+		public:
+			NLLVMPointerArr(llvm::Type* tgt, uint64_t sz) : target(tgt), size(sz)
+			{
+
+			}
+			inline bool operator==(const NLLVMPointerArr& other) const
+			{
+				return target == other.target && size == other.size;
+			}
+			inline llvm::ArrayType* operator->() const
+			{
+				return llvm::ArrayType::get(llvm::PointerType::get(target->getContext(), 0), size);
+			}
+			inline operator llvm::ArrayType* () const
+			{
+				return llvm::ArrayType::get(llvm::PointerType::get(target->getContext(), 0), size);
+			}
+			inline llvm::Type* GetTargetType() const
+			{
+				return target;
+			}
+			inline uint64_t GetSize() const
+			{
+				return size;
+			}
+			llvm::ArrayType* AsLLVMType() const
+			{
+				return llvm::ArrayType::get(llvm::PointerType::get(target->getContext(), 0), size);
+			}
+		};
+		template <typename T>
+		class NLLVMTypeWrap
+		{
+		private:
+			llvm::Type* const annotation;
+			T* const wrapped;
+		public:
+			NLLVMTypeWrap(T* _wrapped) : annotation(0), wrapped(_wrapped)
+			{
+
+			}
+			NLLVMTypeWrap(T * _wrapped, llvm::Type* _annotation) : annotation(_annotation), wrapped(_wrapped)
+			{
+
+			}
+			inline bool operator==(const NLLVMTypeWrap<T>& other) const
+			{
+				return wrapped == other.wrapped;
+			}
+			inline T* operator->() const
+			{
+				return wrapped;
+			}
+			inline operator T* () const
+			{
+				return wrapped;
+			}
+			inline llvm::Type* GetAnnotation() const
+			{
+				return annotation;
+			}
+		};
+		using NLLVMConstant = NLLVMTypeWrap<llvm::Constant>;
+		using NLLVMValue = NLLVMTypeWrap<llvm::Value>;
+		using NLLVMGlobalVariable = NLLVMTypeWrap<llvm::GlobalVariable>;
+		using NLLVMType = NLLVMTypeWrap<llvm::Type>;
+
+		using RegIndex = size_t;
+		using BinRegIndex = uint32_t;
 		using ConstantID = uint64_t;
 		using LocalConstantID = uint64_t;
 		enum class NomConstantType : unsigned char
@@ -108,19 +213,19 @@ namespace Nom
 				return boolType;
 			}
 
-			static llvm::PointerType * GetRefType();
+			static NLLVMPointer &GetRefType();
 
 			static llvm::Type * GetConstantIndexType() {
 				static llvm::Type * ciType = llvm::Type::getIntNTy(LLVMCONTEXT, bitsin(::Nom::Runtime::ConstantID));
 				return ciType;
 			}
 
-			static llvm::PointerType * GetPointerType() {
-				static llvm::PointerType * ptrType = llvm::Type::getIntNTy(LLVMCONTEXT, bitsin(char))->getPointerTo();
+			static NLLVMPointer &GetPointerType() {
+				static NLLVMPointer ptrType = llvm::Type::getIntNTy(LLVMCONTEXT, bitsin(char));
 				return ptrType;
 			}
 
-			static llvm::PointerType * GetTypeType();
+			static NLLVMPointer & GetTypeType();
 
 		};
 
@@ -141,5 +246,15 @@ namespace Nom
 		}
 
 		using NomStringRef = const NomString * const;
+
+		template <typename E>
+		constexpr auto to_underlying(E e) noexcept
+		{
+			return static_cast<std::underlying_type_t<E>>(e);
+		}
 	}
 }
+
+extern "C" DLLEXPORT void RT_NOM_PRINT_STORE(void* val, void* addr);
+
+extern "C" DLLEXPORT void RT_NOM_PRINT_LOAD(void* val, void* addr);

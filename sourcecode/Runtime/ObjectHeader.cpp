@@ -1,14 +1,16 @@
 #include "ObjectHeader.h"
 #include "RTClass.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/DerivedTypes.h"
-#include "RTClassType.h"
-#include "NomJIT.h"
-#include "NomClass.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Verifier.h"
+POPDIAGSUPPRESSION
+#include "RTClassType.h"
+#include "NomJIT.h"
+#include "NomClass.h"
 #include <iostream>
-#include "llvm/Support/raw_os_ostream.h"
 #include "GlobalNameAddressLookupList.h"
 #include "StringClass.h"
 #include "RTInstanceType.h"
@@ -26,6 +28,12 @@
 #include "RTCompileConfig.h"
 #include "CastStats.h"
 #include "IMT.h"
+#include "PWRefValue.h"
+#include "PWVTable.h"
+#include "PWClass.h"
+#include "PWObject.h"
+#include "PWType.h"
+#include "PWInt.h"
 
 using namespace llvm;
 
@@ -44,7 +52,7 @@ namespace Nom
 			}
 			return llvmtype;
 		}
-		llvm::StructType* ObjectHeader::GetLLVMType(int fieldcount, int typeargcount, bool rawInvoke)
+		llvm::StructType* ObjectHeader::GetLLVMType(size_t fieldcount, size_t typeargcount, bool rawInvoke)
 		{
 			return llvm::StructType::get(arrtype(TYPETYPE, typeargcount), RefValueHeader::GetLLVMType(), arrtype(REFTYPE, fieldcount + ((rawInvoke && (NomLambdaOptimizationLevel > 0)) ? 1 : 0)));
 		}
@@ -56,7 +64,7 @@ namespace Nom
 			}
 			if (typeargs == nullptr)
 			{
-				typeargs = llvm::ConstantArray::get(arrtype(RTTypeHead::GetLLVMType()->getPointerTo(), 0), {});
+				typeargs = llvm::ConstantArray::get(arrtype(NLLVMPointer(RTTypeHead::GetLLVMType()), 0), {});
 			}
 			llvm::Constant* invokesarr;
 			if (invokeptr == nullptr)
@@ -91,55 +99,51 @@ namespace Nom
 				obj = new llvm::GlobalVariable(mod, strct->getType(), isConstant, linkage, strct, nameStr);
 				RegisterGlobalForAddressLookup(nameStr.str());
 			}
-			return llvm::ConstantExpr::getGetElementPtr(obj->getType()->getElementType(), obj, llvm::ArrayRef<llvm::Constant*>({ MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::RefValueHeader) }));
+			return llvm::ConstantExpr::getGetElementPtr(obj->getValueType(), obj, llvm::ArrayRef<llvm::Constant*>({ MakeInt<int32_t>(0), MakeInt<int32_t>(static_cast<unsigned char>(ObjectHeaderFields::RefValueHeader)) }));
 		}
-		llvm::Constant* ObjectHeader::FindGlobal(llvm::Module& mod, const std::string &name)
+		llvm::Constant* ObjectHeader::FindGlobal(llvm::Module& mod, const std::string& name)
 		{
 			llvm::GlobalVariable* obj = mod.getGlobalVariable(name);
 			if (obj == nullptr)
 			{
 				return obj;
 			}
-			return llvm::ConstantExpr::getGetElementPtr(obj->getType()->getElementType(), obj, llvm::ArrayRef<llvm::Constant*>({ MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::RefValueHeader) }));
+			return llvm::ConstantExpr::getGetElementPtr(obj->getValueType(), obj, llvm::ArrayRef<llvm::Constant*>({ MakeInt<int32_t>(0), MakeInt<int32_t>(static_cast<unsigned char>(ObjectHeaderFields::RefValueHeader)) }));
 		}
-		llvm::Value* ObjectHeader::GenerateReadTypeArgument(NomBuilder& builder, llvm::Value* objPointer, int32_t argindex)
+		llvm::Value* ObjectHeader::GenerateReadTypeArgument(NomBuilder& builder, llvm::Value* objPointer, size_t argindex)
 		{
-			return MakeLoad(builder, builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMType()->getPointerTo()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::TypeArgs), MakeInt<int32_t>((-1)-argindex) }));
+			return PWObject(objPointer).ReadTypeArgument(builder, PWInt32(argindex, false));
 		}
-		void ObjectHeader::GenerateWriteTypeArgument(NomBuilder& builder, llvm::Value* objPointer, int32_t argindex, llvm::Value* val)
+		void ObjectHeader::GenerateWriteTypeArgument(NomBuilder& builder, llvm::Value* objPointer, size_t argindex, llvm::Value* val)
 		{
-			MakeInvariantStore(builder, builder->CreatePointerCast(val, RTTypeHead::GetLLVMType()->getPointerTo()), builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMType()->getPointerTo()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::TypeArgs),MakeInt<int32_t>((-1)-argindex) }));
+			PWObject(objPointer).WriteTypeArgument(builder, PWInt32(argindex, false), val);
 		}
 		llvm::Value* ObjectHeader::GeneratePointerToTypeArguments(NomBuilder& builder, llvm::Value* objPointer)
 		{
-			return builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMType()->getPointerTo()), { MakeInt32(0), MakeInt32(ObjectHeaderFields::TypeArgs), MakeInt32(0) });
+			return PWObject(objPointer).PointerToTypeArguments(builder);
 		}
-		llvm::Value* ObjectHeader::ReadField(NomBuilder& builder, llvm::Value* objPointer, int32_t fieldindex, bool targetHasRawInvoke)
+		llvm::Value* ObjectHeader::ReadField(NomBuilder& builder, llvm::Value* objPointer, size_t fieldindex, bool targetHasRawInvoke)
 		{
-			return MakeLoad(builder, builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMType()->getPointerTo()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::Fields), MakeInt<int32_t>((fieldindex + ((targetHasRawInvoke&&(NomLambdaOptimizationLevel>0))?1:0))) }));
+			return PWObject(objPointer).ReadField(builder, PWInt32(fieldindex, false), targetHasRawInvoke);
 		}
-		llvm::Value* ObjectHeader::ReadField(NomBuilder& builder, llvm::Value* objPointer, llvm::Value* fieldindex, bool targetHasRawInvoke)
+		void ObjectHeader::WriteField(NomBuilder& builder, llvm::Value* objPointer, size_t fieldindex, llvm::Value* val, bool targetHasRawInvoke)
 		{
-			return MakeLoad(builder, builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMType()->getPointerTo()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::Fields), builder->CreateAdd(fieldindex, MakeInt32(((targetHasRawInvoke && (NomLambdaOptimizationLevel > 0)) ? 1 : 0))) }));
-		}
-		void ObjectHeader::WriteField(NomBuilder& builder, llvm::Value* objPointer, int32_t fieldindex, llvm::Value* val, bool targetHasRawInvoke)
-		{
-			MakeStore(builder, builder->CreatePointerCast(val, REFTYPE), builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMPointerType()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::Fields), MakeInt<int32_t>((fieldindex + ((targetHasRawInvoke && (NomLambdaOptimizationLevel > 0)) ? 1 : 0))) }));
+			PWObject(objPointer).WriteField(builder, PWInt32(fieldindex, false), val, targetHasRawInvoke);
 		}
 		void ObjectHeader::WriteField(NomBuilder& builder, llvm::Value* objPointer, llvm::Value* fieldindex, llvm::Value* val, bool targetHasRawInvoke)
 		{
-			MakeStore(builder, builder->CreatePointerCast(val, REFTYPE), builder->CreateGEP(builder->CreatePointerCast(objPointer, GetLLVMPointerType()), { MakeInt<int32_t>(0), MakeInt<int32_t>((unsigned char)ObjectHeaderFields::Fields), builder->CreateAdd(fieldindex, MakeInt32(((targetHasRawInvoke && (NomLambdaOptimizationLevel > 0)) ? 1 : 0))) }));
+			PWObject(objPointer).WriteField(builder, fieldindex, val, targetHasRawInvoke);
 		}
 		llvm::Value* ObjectHeader::GenerateReadVTablePointer(NomBuilder& builder, llvm::Value* objPointer)
 		{
-			return RefValueHeader::GenerateReadVTablePointer(builder, objPointer);
+			return PWObject(objPointer).ReadVTable(builder);
 		}
-		llvm::Value* ObjectHeader::GenerateSetClassDescriptor(NomBuilder& builder, llvm::Value* ohref, size_t fieldCount, llvm::Value* desc)
+		llvm::Value* ObjectHeader::GenerateSetClassDescriptor(NomBuilder& builder, llvm::Value* ohref, [[maybe_unused]] size_t fieldCount, llvm::Value* desc)
 		{
 			RefValueHeader::GenerateWriteVTablePointer(builder, ohref, builder->CreatePointerCast(desc, RTVTable::GetLLVMType()->getPointerTo()));
 			return ohref;
 		}
-		llvm::Value* ObjectHeader::CreateDictionaryLoad(NomBuilder& builder, CompileEnv* env, NomValue& receiver, llvm::ConstantInt* key, const llvm::Twine keyName)
+		llvm::Value* ObjectHeader::CreateDictionaryLoad(NomBuilder& builder, [[maybe_unused]]  CompileEnv* env, RTValuePtr receiver, llvm::ConstantInt* key, [[maybe_unused]]  const llvm::Twine keyName)
 		{
 			if (NomCastStats)
 			{
@@ -150,7 +154,7 @@ namespace Nom
 			{
 				throw new std::exception();
 			}
-			else if (recType->isIntegerTy(INTTYPE->getPrimitiveSizeInBits()))
+			else if (recType->isIntegerTy(static_cast<unsigned int>(INTTYPE->getPrimitiveSizeInBits())))
 			{
 				throw new std::exception();
 			}
@@ -163,62 +167,20 @@ namespace Nom
 				throw new std::exception();
 			}
 			auto vTableVar = RefValueHeader::GenerateReadVTablePointer(builder, receiver);
-			//BasicBlock* classBlock = nullptr, * lambdaBlock = nullptr, * structBlock = nullptr, * partialAppBlock = nullptr;
-			//Value* vTableVar = nullptr, *sTableVar = nullptr;
-			//Function* fun = builder->GetInsertBlock()->getParent();
+			auto fieldLookupFun = RTVTable::GenerateReadReadFieldFunction(builder, vTableVar);
+			auto fieldValue = builder->CreateCall(GetFieldReadFunctionType(), fieldLookupFun, { key, receiver }, "fieldValue");
+			fieldValue->setCallingConv(NOMCC);
 
-			//RefValueHeader::GenerateRefValueKindSwitch(builder, receiver, &vTableVar, &classBlock, &lambdaBlock, &structBlock, &partialAppBlock);
-			//BasicBlock* outBlock = BasicBlock::Create(LLVMCONTEXT, "DictLoadOut", fun);
-
-			//builder->SetInsertPoint(outBlock);
-			//auto outPHI = builder->CreatePHI(REFTYPE, 2, "dictLoadValue");
-			//
-			//if (classBlock != nullptr)
-			//{
-			//	builder->SetInsertPoint(classBlock);
-			//	vTableVar->setName("classDescriptor");
-				auto fieldLookupFun = RTVTable::GenerateReadReadFieldFunction(builder, vTableVar);
-				auto fieldValue = builder->CreateCall(GetFieldReadFunctionType(), fieldLookupFun, { key, receiver }, "fieldValue");
-				fieldValue->setCallingConv(NOMCC);
-			//	outPHI->addIncoming(fieldValue, builder->GetInsertBlock());
-			//	builder->CreateBr(outBlock);
-			//}
-
-			//if (structBlock != nullptr)
-			//{
-			//	builder->SetInsertPoint(structBlock);
-			//	auto structFieldLookupFun = RTVTable::GenerateReadReadFieldFunction(builder, vTableVar);
-			//	auto structFieldValue = builder->CreateCall(GetFieldReadFunctionType(), structFieldLookupFun, { key, receiver }, "structFieldValue");
-			//	structFieldValue->setCallingConv(NOMCC);
-			//	outPHI->addIncoming(structFieldValue, builder->GetInsertBlock());
-			//	builder->CreateBr(outBlock);
-			//}
-
-			//static const char* structnotImplementedMsg = "Wrong kind of entity for dictionary lookup!";
-			//BasicBlock* wrongTag = RTOutput_Fail::GenerateFailOutputBlock(builder, structnotImplementedMsg);
-
-			//if (lambdaBlock != nullptr)
-			//{
-			//	builder->SetInsertPoint(lambdaBlock);
-			//	builder->CreateBr(wrongTag);
-			//}
-			//if (partialAppBlock != nullptr)
-			//{
-			//	builder->SetInsertPoint(partialAppBlock);
-			//	builder->CreateBr(wrongTag);
-			//}
-
-			//builder->SetInsertPoint(outBlock);
 			return fieldValue;
 
-	
+
 		}
 		void ObjectHeader::EnsureExternalReadWriteFieldFunctions(llvm::Module* mod)
 		{
 			static llvm::Function* readfun = llvm::Function::Create(llvm::FunctionType::get(REFTYPE, { REFTYPE, inttype(32) }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_READFIELD", mod);
 			static llvm::Function* writefun = llvm::Function::Create(llvm::FunctionType::get(llvm::Type::getVoidTy(LLVMCONTEXT), { REFTYPE, inttype(32), REFTYPE }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_WRITEFIELD", mod);
 			static llvm::Function* fieldaddrfun = llvm::Function::Create(llvm::FunctionType::get(REFTYPE->getPointerTo(), { REFTYPE, inttype(32) }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_GETFIELDADDR", mod);
-			
+
 			static llvm::Function* readfun_forinvoke = llvm::Function::Create(llvm::FunctionType::get(REFTYPE, { REFTYPE, inttype(32) }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_READFIELD_FORINVOKABLE", mod);
 			static llvm::Function* writefun_forinvoke = llvm::Function::Create(llvm::FunctionType::get(llvm::Type::getVoidTy(LLVMCONTEXT), { REFTYPE, inttype(32), REFTYPE }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_WRITEFIELD_FORINVOKABLE", mod);
 			static llvm::Function* readtargfun = llvm::Function::Create(llvm::FunctionType::get(TYPETYPE, { REFTYPE, inttype(32) }, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "RT_NOM_READTYPEARG", mod);
@@ -236,8 +198,7 @@ namespace Nom
 				readargs++;
 				llvm::Argument* readindex = readargs;
 				builder->SetInsertPoint(readBlock);
-				//llvm::LoadInst* load = MakeLoad(builder, *mod, builder->CreateGEP(builder->CreatePointerCast(readrec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::Fields), builder->CreateNeg(builder->CreateAdd(MakeInt32(1), readindex))} }));
-				llvm::Value* load = ObjectHeader::ReadField(builder, readrec, readindex, false);
+				llvm::Value* load = PWObject(readrec).ReadField(builder, readindex, false);
 				builder->CreateRet(load);
 
 				llvm::BasicBlock* writeBlock = llvm::BasicBlock::Create(LLVMCONTEXT, "", writefun);
@@ -248,7 +209,6 @@ namespace Nom
 				writeargs++;
 				llvm::Argument* writevalue = writeargs;
 				builder->SetInsertPoint(writeBlock);
-				/*llvm::StoreInst* store =*/ //MakeStore(builder, *mod, writevalue, builder->CreateGEP(builder->CreatePointerCast(writerec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::Fields), builder->CreateNeg(builder->CreateAdd(MakeInt32(1), writeindex))} }));
 				ObjectHeader::WriteField(builder, writerec, writeindex, writevalue, false);
 				builder->CreateRetVoid();
 
@@ -259,7 +219,7 @@ namespace Nom
 				fieldaddrargs++;
 				llvm::Argument* fieldAddrIndex = fieldaddrargs;
 				builder->SetInsertPoint(fieldAddrBlock);
-				llvm::Value* fieldAddr = builder->CreateGEP(builder->CreatePointerCast(fieldAddrRec, ObjectHeader::GetLLVMType()->getPointerTo()), { MakeInt32(0), MakeInt32(ObjectHeaderFields::Fields), fieldAddrIndex });
+				llvm::Value* fieldAddr = builder->CreateGEP(ObjectHeader::GetLLVMType(), fieldAddrRec, { MakeInt32(0), MakeInt32(ObjectHeaderFields::Fields), fieldAddrIndex });
 				builder->CreateRet(fieldAddr);
 
 				llvm::BasicBlock* readBlock_forinvoke = llvm::BasicBlock::Create(LLVMCONTEXT, "", readfun_forinvoke);
@@ -268,8 +228,7 @@ namespace Nom
 				readargs_forinvoke++;
 				llvm::Argument* readindex_forinvoke = readargs_forinvoke;
 				builder->SetInsertPoint(readBlock_forinvoke);
-				//llvm::LoadInst* load = MakeLoad(builder, *mod, builder->CreateGEP(builder->CreatePointerCast(readrec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::Fields), builder->CreateNeg(builder->CreateAdd(MakeInt32(1), readindex))} }));
-				llvm::Value* load_forinvoke = ObjectHeader::ReadField(builder, readrec_forinvoke, readindex_forinvoke, (NomLambdaOptimizationLevel>0));
+				llvm::Value* load_forinvoke = PWObject(readrec_forinvoke).ReadField(builder, readindex_forinvoke, (NomLambdaOptimizationLevel > 0));
 				builder->CreateRet(load_forinvoke);
 
 
@@ -281,7 +240,6 @@ namespace Nom
 				writeargs_forinvoke++;
 				llvm::Argument* writevalue_forinvoke = writeargs_forinvoke;
 				builder->SetInsertPoint(writeBlock_forinvoke);
-				/*llvm::StoreInst* store =*/ //MakeStore(builder, *mod, writevalue, builder->CreateGEP(builder->CreatePointerCast(writerec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::Fields), builder->CreateNeg(builder->CreateAdd(MakeInt32(1), writeindex))} }));
 				ObjectHeader::WriteField(builder, writerec_forinvoke, writeindex_forinvoke, writevalue_forinvoke, (NomLambdaOptimizationLevel > 0));
 				builder->CreateRetVoid();
 
@@ -291,7 +249,7 @@ namespace Nom
 				readtargargs++;
 				llvm::Argument* readtargindex = readtargargs;
 				builder->SetInsertPoint(readtargBlock);
-				llvm::LoadInst* loadtarg = MakeLoad(builder, *mod, builder->CreateGEP(builder->CreatePointerCast(readtargrec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::TypeArgs), builder->CreateSub(MakeInt32(-1),readtargindex)} }));
+				llvm::LoadInst* loadtarg = MakeLoad(builder, TYPETYPE, builder->CreateGEP(ObjectHeader::GetLLVMType(), readtargrec, { {MakeInt32(0), MakeInt32(ObjectHeaderFields::TypeArgs), builder->CreateSub(MakeInt32(-1),readtargindex)} }));
 				builder->CreateRet(loadtarg);
 
 
@@ -303,7 +261,7 @@ namespace Nom
 				writetargargs++;
 				llvm::Argument* writetargvalue = writetargargs;
 				builder->SetInsertPoint(writetargBlock);
-				/*llvm::StoreInst* store =*/ MakeStore(builder, *mod, writetargvalue, builder->CreateGEP(builder->CreatePointerCast(writetargrec, ObjectHeader::GetLLVMType()->getPointerTo()), { {MakeInt32(0), MakeInt32((unsigned int)ObjectHeaderFields::TypeArgs), builder->CreateSub(MakeInt32(-1),writetargindex)} }));
+				MakeStore(builder, writetargvalue, builder->CreateGEP(ObjectHeader::GetLLVMType(), writetargrec, { {MakeInt32(0), MakeInt32(ObjectHeaderFields::TypeArgs), builder->CreateSub(MakeInt32(-1),writetargindex)} }));
 				builder->CreateRetVoid();
 
 				llvm::BasicBlock* writevtBlock = llvm::BasicBlock::Create(LLVMCONTEXT, "", writeVtableFun);
@@ -312,7 +270,7 @@ namespace Nom
 				writevtargs++;
 				llvm::Argument* writevtvtable = writevtargs;
 				builder->SetInsertPoint(writevtBlock);
-				MakeStore(builder, writevtvtable, builder->CreatePointerCast(builder->CreateGEP(writevtrec, { MakeInt32(0), MakeInt32(RefValueHeaderFields::InterfaceTable) }), POINTERTYPE->getPointerTo()));
+				MakeStore(builder, writevtvtable, NLLVMValue(builder->CreateGEP(RefValueHeader::GetLLVMType(), writevtrec, { MakeInt32(0), MakeInt32(RefValueHeaderFields::InterfaceTable) }), POINTERTYPE->getPointerTo()));
 				builder->CreateRetVoid();
 
 				if (verifyFunction(*readfun))
@@ -376,20 +334,21 @@ namespace Nom
 		* Calculates the address of the function pointer to the method in the method table. This address needs to be cast to the correct type
 		* (a pointer to the correct function pointer type) and then loaded to obtain the actual function pointer.
 		*/
-		Value* ObjectHeader::GetDispatchMethodPointer(NomBuilder& builder, CompileEnv* env, RegIndex reg, int lineno, NomInstantiationRef<const NomMethod> method)
+		Value* ObjectHeader::GetDispatchMethodPointer(NomBuilder& builder, CompileEnv* env, RegIndex reg, [[maybe_unused]] size_t lineno, NomInstantiationRef<const NomMethod> method)
 		{
-			Value* clsdescptr = RefValueHeader::GenerateReadVTablePointer(builder, (*env)[reg]);
-			Value* clsdescptr_typed = builder->CreatePointerCast(clsdescptr, RTClass::GetLLVMType()->getPointerTo());
+			PWRefValue objectHeader = PWRefValue((*env)[reg]);
+			PWVTable clsdescptr = objectHeader.ReadVTable(builder);
+			PWClass clsdescptr_typed = PWClass::FromVTable(clsdescptr);
 			Value* funaddr = RTVTable::GenerateReadMethodTableEntry(builder, clsdescptr_typed, MakeInt32(method.Elem->GetOffset()));
 
-			Value* funaddr_typed = builder->CreatePointerCast( funaddr, method.Elem->GetLLVMFunctionType()->getPointerTo());
+			Value* funaddr_typed = builder->CreatePointerCast(funaddr, method.Elem->GetLLVMFunctionType()->getPointerTo());
 
 			return funaddr_typed;
 
 		}
 
 
-		llvm::Value* ObjectHeader::GetInterfaceMethodTableFunction(NomBuilder& builder, CompileEnv* env, RegIndex reg, llvm::Constant * index, int lineno)
+		llvm::Value* ObjectHeader::GetInterfaceMethodTableFunction(NomBuilder& builder, CompileEnv* env, RegIndex reg, llvm::Constant* index, size_t lineno)
 		{
 			return RefValueHeader::GetInterfaceMethodTableFunction(builder, env, reg, index, lineno);
 		}

@@ -8,6 +8,9 @@
 #include "RTSubstStack.h"
 #include "RTMaybeType.h"
 #include "IMT.h"
+#include "PWType.h"
+#include "PWCastFunction.h"
+#include "PWNomType.h"
 
 using namespace llvm;
 namespace Nom
@@ -25,67 +28,42 @@ namespace Nom
 				llvmtype->setBody(
 					numtype(TypeKind), //Kind
 					numtype(size_t),   //Hash
-					POINTERTYPE,	   //NomType
-					GetCastFunctionType()->getPointerTo()
+					POINTERTYPE.AsLLVMType(),	   //NomType
+					NLLVMPointer(GetCastFunctionType()).AsLLVMType()
 				);
 			}
 			return llvmtype;
 		}
 
-		llvm::Constant* RTTypeHead::GetConstant(TypeKind kind, llvm::Constant* hash, const NomType* type,/* llvm::Constant* subtypingFun, llvm::Constant* typeEqFun, */llvm::Constant* castFun/*, llvm::Constant* dsjFun*/)
+		llvm::Constant* RTTypeHead::GetConstant(TypeKind kind, llvm::Constant* hash, const NomType* type,llvm::Constant* castFun)
 		{
-			return llvm::ConstantStruct::get(GetLLVMType(), MakeInt((unsigned char)kind), hash, GetLLVMPointer(type), castFun);
+			return llvm::ConstantStruct::get(GetLLVMType(), MakeInt8(kind).wrapped, hash, GetLLVMPointer(type), castFun);
 		}
 
-		void RTTypeHead::CreateInitialization(NomBuilder& builder, llvm::Module& mod, llvm::Value* ptr, TypeKind kind, llvm::Value* hash, llvm::Value* nomtypeptr, /*llvm::Value* subtypingFun, llvm::Value* typeEqFun,*/ llvm::Value* castFun/*, llvm::Value* dsjFun*/)
+		void RTTypeHead::CreateInitialization(NomBuilder& builder, [[maybe_unused]] llvm::Module& mod, llvm::Value* ptr, TypeKind kind, llvm::Value* hash, llvm::Value* nomtypeptr, llvm::Value* castFun)
 		{
-			ptr = builder->CreatePointerCast(ptr, GetLLVMType()->getPointerTo());
-			MakeInvariantStore(builder, mod, MakeInt((unsigned char)kind), builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::Kind) }));
-			MakeInvariantStore(builder, mod, hash, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::Hash) }));
-			MakeInvariantStore(builder, mod, nomtypeptr, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::NomType) }));
-			//MakeInvariantStore(builder, mod, subtypingFun, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::SubtypingFun) }));
-			//MakeInvariantStore(builder, mod, typeEqFun, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::TypeEqFun) }));
-			MakeInvariantStore(builder, mod, castFun, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::CastFun) }));
-			//MakeInvariantStore(builder, mod, dsjFun, builder->CreateGEP(ptr, { MakeInt32(0), MakeInt32((unsigned char)RTTypeHeadFields::IsDisjointFun) }));
+			PWType(ptr).InitializeType(builder, kind, hash, nomtypeptr, castFun);
 		}
 
 		llvm::Constant* RTTypeHead::GetVariable(const int index)
 		{
-			return llvm::ConstantStruct::get(GetLLVMType(), MakeInt((unsigned char)TypeKind::TKVariable), MakeInt((intptr_t)index));
+			return llvm::ConstantStruct::get(GetLLVMType(), MakeInt8(TypeKind::TKVariable).wrapped, MakeInt<const intptr_t>(index));
 		}
 
 
 		llvm::Value* RTTypeHead::GenerateReadTypeKind(NomBuilder& builder, llvm::Value* type)
 		{
-			return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::Kind), "typeKind");
+			return PWType(type).ReadKind(builder);
 		}
 
 		llvm::Value* RTTypeHead::GenerateReadTypeHash(NomBuilder& builder, llvm::Value* type)
 		{
-			return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::Hash), "typeHash");
-		}
-
-		llvm::Value* RTTypeHead::GenerateReadSubtypingFun(NomBuilder& builder, llvm::Value* type)
-		{
-			throw new std::exception();
-			//return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::SubtypingFun), "subtypingFun");
-		}
-
-		llvm::Value* RTTypeHead::GenerateReadTypeEqFun(NomBuilder& builder, llvm::Value* type)
-		{
-			throw new std::exception();
-			//return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::TypeEqFun), "typeEqFun");
+			return PWType(type).ReadHash(builder);
 		}
 
 		llvm::Value* RTTypeHead::GenerateReadCastFun(NomBuilder& builder, llvm::Value* type)
 		{
-			return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::CastFun), "castfun");
-		}
-
-		llvm::Value* RTTypeHead::GenerateReadIsDisjointFun(NomBuilder& builder, llvm::Value* type)
-		{
-			throw new std::exception();
-			//return MakeInvariantLoad(builder, type, GetLLVMType()->getPointerTo(), MakeInt32(RTTypeHeadFields::IsDisjointFun), "isDisjointFun");
+			return PWType(type).ReadCastFun(builder);
 		}
 
 		int RTTypeHead::GenerateTypeKindSwitchRecurse(NomBuilder& builder, llvm::Value* type, llvm::Value* substStack, llvm::Value** innerTypeVar, llvm::Value** innerSubstStackVar, llvm::BasicBlock** classTypeBlockVar, llvm::BasicBlock** topTypeBlockVar, llvm::BasicBlock** typeVarBlockVar, llvm::BasicBlock** bottomTypeBlockVar, llvm::BasicBlock** instanceTypeBlockVar, llvm::BasicBlock** dynamicTypeBlockVar, llvm::BasicBlock** maybeTypeBlockVar, llvm::BasicBlock* failBlock)
@@ -402,22 +380,10 @@ namespace Nom
 		{
 
 		}
-		llvm::FunctionType* GetSubtypingFunctionType()
-		{
-			return GetIMTFunctionType();
-		}
-		llvm::FunctionType* GetTypeEqFunctionType()
-		{
-			return GetIMTFunctionType();
-		}
 		llvm::FunctionType* GetCastFunctionType()
 		{
 			static FunctionType* ft = FunctionType::get(REFTYPE, { TYPETYPE, REFTYPE }, false);
 			return ft;
-		}
-		llvm::FunctionType* GetIsDisjointFunctionType()
-		{
-			return GetIMTFunctionType();
 		}
 	}
 }

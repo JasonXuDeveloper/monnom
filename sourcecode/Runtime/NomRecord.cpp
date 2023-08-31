@@ -1,3 +1,8 @@
+#include <iostream>
+PUSHDIAGSUPPRESSION
+#include "llvm/Support/raw_os_ostream.h"
+#include "llvm/IR/Verifier.h"
+POPDIAGSUPPRESSION
 #include "NomRecord.h"
 #include "NomField.h"
 #include "NomMemberContext.h"
@@ -10,9 +15,6 @@
 #include "NomPartialApplication.h"
 #include "IntClass.h"
 #include "FloatClass.h"
-#include <iostream>
-#include "llvm/Support/raw_os_ostream.h"
-#include "llvm/IR/Verifier.h"
 #include "NomTypeVar.h"
 #include "RTOutput.h"
 #include "instructions/CallDispatchBestMethod.h"
@@ -30,6 +32,8 @@
 #include "NomLambdaCallTag.h"
 #include "Metadata.h"
 #include "NomRecordCallTag.h"
+#include "PWObject.h"
+#include "PWTypeArr.h"
 
 using namespace llvm;
 using namespace std;
@@ -85,21 +89,21 @@ namespace Nom
 			auto constant = RTRecord::CreateConstant(this, GetDynamicFieldLookup(mod, linkage), GetDynamicFieldStore(mod, linkage), GetInterfaceTableLookup(mod, linkage), ddreftable);
 			gv->setInitializer(ConstantStruct::get(gvartype, { ConstantArray::get(arrtype(inttype(64), hasRawInvoke ? 1 : 0), ArrayRef<Constant*>(pushArr, hasRawInvoke ? 1 : 0)), constant, ddtable }));
 
-			StructInstantiationCompileEnv sice = StructInstantiationCompileEnv(regcount, fun, GetAllTypeParameters(), GetArgumentTypes(nullptr), this, EndArgRegisterCount);
+			StructInstantiationCompileEnv sice = StructInstantiationCompileEnv(builder, regcount, fun, GetAllTypeParameters(), GetArgumentTypes(nullptr), this, EndArgRegisterCount);
 
 			RecordHeader::GenerateConstructorCode(builder, ArrayRef<Value*>(typeArgBuf, targc), &sice, ConstantExpr::getGetElementPtr(gvartype, gv, ArrayRef<Constant*>({ MakeInt32(0), MakeInt32(1) })), GetInstructions());
 
 			return fun;
 		}
-		NomTypeRef NomRecord::GetReturnType(const NomSubstitutionContext* context) const
+		NomTypeRef NomRecord::GetReturnType([[maybe_unused]] const NomSubstitutionContext* context) const
 		{
 			return &NomDynamicType::RecordInstance();
 		}
-		const NomField* NomRecord::GetField(NomStringRef name) const
+		const NomField* NomRecord::GetField(NomStringRef _name) const
 		{
 			for (auto field : Fields)
 			{
-				if (NomStringEquality()(field->GetName(), name))
+				if (NomStringEquality()(field->GetName(), _name))
 				{
 					return field;
 				}
@@ -107,15 +111,15 @@ namespace Nom
 			throw new std::exception();
 		}
 
-		NomRecordMethod* NomRecord::AddMethod(std::string& name, std::string& qname, ConstantID typeParameters, ConstantID returnType, ConstantID argTypes, RegIndex regcount)
+		NomRecordMethod* NomRecord::AddMethod(std::string& _name, std::string& _qname, ConstantID _typeParameters, ConstantID _returnType, ConstantID _argTypes, RegIndex _regcount)
 		{
-			NomRecordMethod* meth = new NomRecordMethod(this, name, qname, typeParameters, returnType, argTypes, regcount);
+			NomRecordMethod* meth = new NomRecordMethod(this, _name, _qname, _typeParameters, _returnType, _argTypes, _regcount);
 			Methods.push_back(meth);
 			return meth;
 		}
 
-		NomRecordField* NomRecord::AddField(const ConstantID name, const ConstantID type, bool isReadOnly, RegIndex valueRegister) {
-			NomRecordField* field = new NomRecordField(this, name, type, isReadOnly, Fields.size(), valueRegister);
+		NomRecordField* NomRecord::AddField(const ConstantID _name, const ConstantID _type, bool _isReadOnly, RegIndex _valueRegister) {
+			NomRecordField* field = new NomRecordField(this, _name, _type, _isReadOnly, Fields.size(), _valueRegister);
 			Fields.push_back(field);
 			return field;
 		}
@@ -148,9 +152,9 @@ namespace Nom
 				BasicBlock* notfound = BasicBlock::Create(LLVMCONTEXT, "notFound", fun);
 
 				builder->SetInsertPoint(start);
-				auto nameSwitch = builder->CreateSwitch(namearg, notfound, this->Fields.size());
+				auto nameSwitch = builder->CreateSwitch(namearg, notfound, static_cast<unsigned int>(this->Fields.size()));
 
-				SimpleClassCompileEnv scce = SimpleClassCompileEnv(fun, this, nullarray(NomTypeParameterRef), TypeList({ NomIntClass::GetInstance()->GetType() }), thisType);
+				SimpleClassCompileEnv scce = SimpleClassCompileEnv(builder, fun, this, nullarray(NomTypeParameterRef), TypeList({ NomIntClass::GetInstance()->GetType() }), thisType);
 
 				for (auto field : Fields)
 				{
@@ -158,7 +162,7 @@ namespace Nom
 					BasicBlock* fieldBlock = BasicBlock::Create(LLVMCONTEXT, "field:" + fieldName, fun);
 					nameSwitch->addCase(MakeInt<size_t>(NomNameRepository::Instance().GetNameID(fieldName)), fieldBlock);
 					builder->SetInsertPoint(fieldBlock);
-					builder->CreateRet(field->GenerateRead(builder, &scce, NomValue(thisarg, thisType)));//removed EnsurePacked from here, because struct values are always supposed to be packed
+					builder->CreateRet(field->GenerateRead(builder, &scce, RTValue::GetValue(builder, thisarg, thisType)));//removed EnsurePacked from here, because struct values are always supposed to be packed
 				}
 				builder->SetInsertPoint(notfound);
 				static const char* lookupfailstr = "Could not find any fields with matching name!";
@@ -209,9 +213,9 @@ namespace Nom
 				BasicBlock* errorBlock = BasicBlock::Create(LLVMCONTEXT, "invalidWriteValue", fun);
 
 				builder->SetInsertPoint(start);
-				auto nameSwitch = builder->CreateSwitch(namearg, notfound, this->Fields.size());
+				auto nameSwitch = builder->CreateSwitch(namearg, notfound, static_cast<unsigned int>(this->Fields.size()));
 
-				SimpleClassCompileEnv scce = SimpleClassCompileEnv(fun, this, nullarray(NomTypeParameterRef), TypeList({ NomIntClass::GetInstance()->GetType(), &NomDynamicType::Instance() }), thisType);
+				SimpleClassCompileEnv scce = SimpleClassCompileEnv(builder, fun, this, nullarray(NomTypeParameterRef), TypeList({ NomIntClass::GetInstance()->GetType(), &NomDynamicType::Instance() }), thisType);
 
 				for (auto field : Fields)
 				{
@@ -222,7 +226,7 @@ namespace Nom
 					RTCast::GenerateCast(builder, &scce, newValue, field->GetType());
 					auto writeValue = newValue;
 					writeValue = EnsurePacked(builder, writeValue);
-					field->GenerateWrite(builder, &scce, NomValue(thisarg, thisType), NomValue(writeValue, field->GetType()));
+					field->GenerateWrite(builder, &scce, RTValue::GetValue(builder, thisarg, thisType), RTValue::GetValue(builder, writeValue, field->GetType()));
 					builder->CreateRetVoid();
 				}
 				builder->SetInsertPoint(notfound);
@@ -266,10 +270,10 @@ namespace Nom
 				auto callTag = argiter;
 				argiter++;
 				auto varargs = makealloca(Value*, RTConfig_NumberOfVarargsArguments + 1);
-				for (decltype(RTConfig_NumberOfVarargsArguments) i = 0; i <= RTConfig_NumberOfVarargsArguments; i++)
+				for (decltype(RTConfig_NumberOfVarargsArguments) j = 0; j <= RTConfig_NumberOfVarargsArguments; j++)
 				{
-					varargs[i] = argiter;
-					argarr[i + 1] = argiter;
+					varargs[j] = argiter;
+					argarr[j + 1] = argiter;
 					argiter++;
 				}
 
@@ -292,7 +296,7 @@ namespace Nom
 						auto argsarr = makealloca(Value*, paramCount);		
 
 						NomSubstitutionContextMemberContext nscmc(meth);
-						CastedValueCompileEnv cvce = CastedValueCompileEnv(meth->GetDirectTypeParameters(), this->GetAllTypeParameters(), fun, 2, paramCount, ObjectHeader::GeneratePointerToTypeArguments(builder, varargs[0]));
+						CastedValueCompileEnv cvce = CastedValueCompileEnv(builder, meth->GetDirectTypeParameters(), this->GetAllTypeParameters(), fun, 2, paramCount, PWObject(varargs[0]).PointerToTypeArguments(builder));
 
 						for (decltype(paramCount) j = 0; j < paramCount; j++)
 						{
@@ -303,7 +307,7 @@ namespace Nom
 							}
 							else
 							{
-								curArg = MakeInvariantLoad(builder, builder->CreateGEP(varargs[RTConfig_NumberOfVarargsArguments], MakeInt32(j - RTConfig_NumberOfVarargsArguments)), "varArg", AtomicOrdering::NotAtomic);
+								curArg = MakeInvariantLoad(builder, POINTERTYPE, builder->CreateGEP(POINTERTYPE, varargs[RTConfig_NumberOfVarargsArguments], MakeInt32(j - RTConfig_NumberOfVarargsArguments)), "varArg", AtomicOrdering::NotAtomic);
 							}
 							auto expectedType = implFunctionType->getParamType(j);
 							if (j >= meth->GetDirectTypeParametersCount())
@@ -378,7 +382,7 @@ namespace Nom
 				auto entrycount = methods.size() + fields.size() + 1;
 				auto entries = makealloca(Constant*, entrycount);
 
-				int entryID = 0;
+				size_t entryID = 0;
 				for (auto& meth : methods)
 				{
 					auto fun = Function::Create(GetIMTFunctionType(), linkage, "NOMMON_RT_DD_" + *meth->GetSymbolName(), mod);
@@ -396,9 +400,9 @@ namespace Nom
 					auto callTag = argiter;
 					argiter++;
 					auto varargs = makealloca(Value*, RTConfig_NumberOfVarargsArguments + 1);
-					for (decltype(RTConfig_NumberOfVarargsArguments) i = 0; i <= RTConfig_NumberOfVarargsArguments; i++)
+					for (decltype(RTConfig_NumberOfVarargsArguments) j = 0; j <= RTConfig_NumberOfVarargsArguments; j++)
 					{
-						varargs[i] = argiter;
+						varargs[j] = argiter;
 						argiter++;
 					}
 
@@ -420,7 +424,7 @@ namespace Nom
 						}
 						else
 						{
-							curArg = MakeInvariantLoad(builder, builder->CreateGEP(varargs[RTConfig_NumberOfVarargsArguments], MakeInt32(j - RTConfig_NumberOfVarargsArguments)), "varArg", AtomicOrdering::NotAtomic);
+							curArg = MakeInvariantLoad(builder, POINTERTYPE, builder->CreateGEP(POINTERTYPE, varargs[RTConfig_NumberOfVarargsArguments], MakeInt32(j - RTConfig_NumberOfVarargsArguments)), "varArg", AtomicOrdering::NotAtomic);
 						}
 						auto expectedType = implFunctionType->getParamType(j);
 						curArg = EnsurePackedUnpacked(builder, curArg, REFTYPE);
@@ -450,10 +454,10 @@ namespace Nom
 				}
 				auto bigptr = ConstantExpr::getGetElementPtr(RecordHeader::GetLLVMType(Fields.size()), ConstantPointerNull::get(RecordHeader::GetLLVMType(Fields.size())->getPointerTo()), ArrayRef<Constant*>({ MakeInt32(0), MakeInt32(StructHeaderFields::Fields) }));
 				auto littleptr = ConstantExpr::getGetElementPtr(RecordHeader::GetLLVMType(), ConstantPointerNull::get(RecordHeader::GetLLVMType()->getPointerTo()), ArrayRef<Constant*>({ MakeInt32(0), MakeInt32(StructHeaderFields::Fields) }));
-				auto fieldsOffset = ConstantExpr::getUDiv(ConstantExpr::getSub(ConstantExpr::getPtrToInt(bigptr, numtype(size_t)), ConstantExpr::getPtrToInt(littleptr, numtype(size_t))), MakeInt<size_t>(8));
+				auto fieldsOffset = ConstantExpr::getAShr(ConstantExpr::getSub(ConstantExpr::getPtrToInt(bigptr, numtype(size_t)), ConstantExpr::getPtrToInt(littleptr, numtype(size_t))), MakeInt<size_t>(3));
 				for (auto& field : fields)
 				{
-					entries[entryID] = GetDynamicDispatchListEntryConstant(MakeInt<size_t>(NomNameRepository::Instance().GetNameID(field->GetName()->ToStdString())), MakeInt<size_t>(1), ConstantExpr::getIntToPtr(ConstantExpr::getAdd(MakeInt<size_t>((((size_t)(field->Index)) << 32)), fieldsOffset), GetIMTFunctionType()->getPointerTo()));
+					entries[entryID] = GetDynamicDispatchListEntryConstant(MakeInt<size_t>(NomNameRepository::Instance().GetNameID(field->GetName()->ToStdString())), MakeInt<size_t>(1), ConstantExpr::getIntToPtr(ConstantExpr::getAdd(MakeInt<size_t>(((field->Index) << 32)), fieldsOffset), GetIMTFunctionType()->getPointerTo()));
 					entryID++;
 				}
 				entries[entryID] = GetDynamicDispatchListEntryConstant(MakeInt<size_t>(0), MakeInt<size_t>(0), ConstantPointerNull::get(GetIMTFunctionType()->getPointerTo()));

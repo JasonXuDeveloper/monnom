@@ -15,6 +15,9 @@
 #include "RTRecord.h"
 #include "RTVTable.h"
 #include "CastStats.h"
+#include "PWStructVal.h"
+#include "PWTypeArr.h"
+#include "PWCastData.h"
 
 using namespace llvm;
 using namespace std;
@@ -35,7 +38,7 @@ namespace Nom
 					arrtype(TYPETYPE, 0),																				//Closure type args
 					RefValueHeader::GetLLVMType(),																		//vtable
 					(NomLambdaOptimizationLevel > 0 ? static_cast<llvm::Type*>(POINTERTYPE) : arrtype(POINTERTYPE, 0)),	//potential space for raw invoke pointer
-					POINTERTYPE																							//cast data
+					POINTERTYPE.AsLLVMType()																			//cast data
 				);
 			}
 			return shst;
@@ -43,40 +46,36 @@ namespace Nom
 
 		void StructuralValueHeader::GenerateInitializationCode(NomBuilder& builder, llvm::Value* refValue, llvm::ArrayRef<llvm::Value*> typeArguments, llvm::Constant* vTablePtr, llvm::Constant* rawInvokePointer)
 		{
-			auto castedDescriptor = builder->CreatePointerCast(refValue, GetLLVMType()->getPointerTo());
+			auto castedDescriptor = refValue;
 			int targIndex = -1;
 			for (auto& targ : typeArguments)
 			{
-				auto targAddress = builder->CreateGEP(castedDescriptor, { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::TypeArgs), MakeInt32(targIndex) });
+				auto targAddress = builder->CreateGEP(GetLLVMType(), refValue, {MakeInt32(0), MakeInt32(StructuralValueHeaderFields::TypeArgs), MakeInt32(targIndex)});
 				MakeInvariantStore(builder, targ, targAddress);
 				targIndex--;
 			}
-			RefValueHeader::GenerateInitializerCode(builder, builder->CreateGEP(castedDescriptor, { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::RefValueHeader) }), vTablePtr, rawInvokePointer);
+			RefValueHeader::GenerateInitializerCode(builder, builder->CreateGEP(GetLLVMType(), refValue, { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::RefValueHeader) }), vTablePtr, rawInvokePointer);
 		}
 
 		llvm::Value* StructuralValueHeader::GenerateReadTypeArgsPtr(NomBuilder& builder, llvm::Value* sValue)
 		{
-			return builder->CreateGEP(builder->CreatePointerCast(sValue, GetLLVMType()->getPointerTo()), { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::TypeArgs) });
+			return PWStructVal(sValue).PointerToTypeArguments(builder);
 		}
 
 		llvm::Value* StructuralValueHeader::GenerateReadCastData(NomBuilder& builder, llvm::Value* sValue)
 		{
-			auto loadInst = MakeLoad(builder, sValue, GetLLVMType()->getPointerTo(), MakeInt32(StructuralValueHeaderFields::CastData), "castData", AtomicOrdering::Acquire);
-			return loadInst;
+			return PWStructVal(sValue).ReadCastData(builder);
 		}
 
 		llvm::Value* StructuralValueHeader::GenerateReadTypeArgument(NomBuilder& builder, llvm::Value* sValue, llvm::Value* index)
 		{
-			auto targAddress = builder->CreateGEP(builder->CreatePointerCast(sValue, GetLLVMType()->getPointerTo()), { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::TypeArgs), builder->CreateSub(MakeInt32(-1), builder->CreateZExtOrTrunc(index, inttype(32))) });
-			auto loadInst = MakeInvariantLoad(builder, targAddress, "typeArgument");
-			return loadInst;
+			return PWStructVal(sValue).ReadTypeArgument(builder, index);
 		}
 
 
 		llvm::Value* StructuralValueHeader::GenerateWriteCastTypePointerCMPXCHG(NomBuilder& builder, llvm::Value* thisObj, llvm::Value* newPtr, llvm::Value* oldPtr)
 		{
-			auto argPtr = builder->CreateGEP(builder->CreatePointerCast(thisObj, GetLLVMType()->getPointerTo()), { MakeInt32(0), MakeInt32(StructuralValueHeaderFields::CastData) });
-			return builder->CreateAtomicCmpXchg(argPtr, oldPtr, newPtr, AtomicOrdering::AcquireRelease, AtomicOrdering::Acquire);
+			return PWStructVal(thisObj).WriteCastDataCMPXCHG(builder, oldPtr, newPtr);
 		}
 
 		void StructuralValueHeader::GenerateMonotonicStructuralCast(NomBuilder& builder, llvm::Function* fun, llvm::BasicBlock* successBlock, llvm::BasicBlock* failBlock, llvm::Value* value, NomClassTypeRef rightType, llvm::Value* outerStack)
@@ -203,130 +202,130 @@ namespace Nom
 			}
 		}
 
-		void StructuralValueHeader::GenerateMonotonicStructuralCast(NomBuilder& builder, llvm::Function* fun, llvm::BasicBlock* successBlock, llvm::BasicBlock* failBlock, llvm::Value* value, llvm::Value* rightType, llvm::Value* rightIface, llvm::Value* rightTypeArgs, llvm::Value* outerStack)
-		{
-			unsigned int extractIndex[2];
-			extractIndex[0] = 0;
-			extractIndex[1] = 1;
+		//void StructuralValueHeader::GenerateMonotonicStructuralCast(NomBuilder& builder, llvm::Function* fun, llvm::BasicBlock* successBlock, llvm::BasicBlock* failBlock, llvm::Value* value, llvm::Value* rightType, llvm::Value* rightIface, llvm::Value* rightTypeArgs, llvm::Value* outerStack)
+		//{
+		//	unsigned int extractIndex[2];
+		//	extractIndex[0] = 0;
+		//	extractIndex[1] = 1;
 
-			auto typeUniqueFun = TypeRegistry::Instance().GetLLVMElement(*fun->getParent());
-			auto signatureSubtyping = RTSignature::Instance().GetLLVMElement(*fun->getParent());
-			auto subtypingFun = RTSubtyping::Instance().GetLLVMElement(*fun->getParent());
+		//	auto typeUniqueFun = TypeRegistry::Instance().GetLLVMElement(*fun->getParent());
+		//	auto signatureSubtyping = RTSignature::Instance().GetLLVMElement(*fun->getParent());
+		//	auto subtypingFun = RTSubtyping::Instance().GetLLVMElement(*fun->getParent());
 
-			BasicBlock* cmpxchgFailBlock = BasicBlock::Create(LLVMCONTEXT, "cmpxchgfail", fun);
-			BasicBlock* notFunctionalInterface = RTOutput_Fail::GenerateFailOutputBlock(builder, notAFunctionalInterfaceMsg);
-			BasicBlock* unimplementedBlock = RTOutput_Fail::GenerateFailOutputBlock(builder, unimplementedMsg);
+		//	BasicBlock* cmpxchgFailBlock = BasicBlock::Create(LLVMCONTEXT, "cmpxchgfail", fun);
+		//	BasicBlock* notFunctionalInterface = RTOutput_Fail::GenerateFailOutputBlock(builder, notAFunctionalInterfaceMsg);
+		//	BasicBlock* unimplementedBlock = RTOutput_Fail::GenerateFailOutputBlock(builder, unimplementedMsg);
 
-			BasicBlock* startBlock = BasicBlock::Create(LLVMCONTEXT, "monoCastStart", fun);
-			builder->CreateBr(startBlock);
+		//	BasicBlock* startBlock = BasicBlock::Create(LLVMCONTEXT, "monoCastStart", fun);
+		//	builder->CreateBr(startBlock);
 
-			builder->SetInsertPoint(startBlock);
-			auto currentCastData = StructuralValueHeader::GenerateReadCastData(builder, value);
-			auto hasBeenCast = builder->CreateIsNotNull(currentCastData);
-			Value* lambdaCastTypeOnFirstFail = nullptr;
+		//	builder->SetInsertPoint(startBlock);
+		//	auto currentCastData = StructuralValueHeader::GenerateReadCastData(builder, value);
+		//	auto hasBeenCast = builder->CreateIsNotNull(currentCastData);
+		//	Value* lambdaCastTypeOnFirstFail = nullptr;
 
-			BasicBlock* firstCastBlock = BasicBlock::Create(LLVMCONTEXT, "LambdaCast$firstCast", fun);
-			BasicBlock* multiCastBlock = BasicBlock::Create(LLVMCONTEXT, "LambdaCast$multiCast", fun);
+		//	BasicBlock* firstCastBlock = BasicBlock::Create(LLVMCONTEXT, "LambdaCast$firstCast", fun);
+		//	BasicBlock* multiCastBlock = BasicBlock::Create(LLVMCONTEXT, "LambdaCast$multiCast", fun);
 
-			BasicBlock* incomingBlock = builder->GetInsertBlock();
-			builder->CreateCondBr(hasBeenCast, multiCastBlock, firstCastBlock);
-			{
+		//	BasicBlock* incomingBlock = builder->GetInsertBlock();
+		//	builder->CreateCondBr(hasBeenCast, multiCastBlock, firstCastBlock);
+		//	{
 
-				BasicBlock* tryWriteTypeCastBlock = BasicBlock::Create(LLVMCONTEXT, "trycmpxchg", fun);
-				BasicBlock* checkSignatureRequiredBlock = BasicBlock::Create(LLVMCONTEXT, "checkSignatureRequired", fun);
-				BasicBlock* checkHasLambdaBlock = BasicBlock::Create(LLVMCONTEXT, "checkSignatureExists", fun);
-				BasicBlock* checkSignatureBlock = RTConfig_CheckLambdaSignaturesAtCast?BasicBlock::Create(LLVMCONTEXT, "checkSignature", fun):tryWriteTypeCastBlock;
+		//		BasicBlock* tryWriteTypeCastBlock = BasicBlock::Create(LLVMCONTEXT, "trycmpxchg", fun);
+		//		BasicBlock* checkSignatureRequiredBlock = BasicBlock::Create(LLVMCONTEXT, "checkSignatureRequired", fun);
+		//		BasicBlock* checkHasLambdaBlock = BasicBlock::Create(LLVMCONTEXT, "checkSignatureExists", fun);
+		//		BasicBlock* checkSignatureBlock = RTConfig_CheckLambdaSignaturesAtCast?BasicBlock::Create(LLVMCONTEXT, "checkSignature", fun):tryWriteTypeCastBlock;
 
-				builder->SetInsertPoint(firstCastBlock);
+		//		builder->SetInsertPoint(firstCastBlock);
 
-				BasicBlock* lambdaBlock = nullptr, * recordBlock = nullptr, * partialAppBlock = nullptr;
-				Value* vTableVar = nullptr;
+		//		BasicBlock* lambdaBlock = nullptr, * recordBlock = nullptr, * partialAppBlock = nullptr;
+		//		Value* vTableVar = nullptr;
 
-				auto interfaceSig = RTInterface::GenerateReadSignature(builder, rightIface);
+		//		auto interfaceSig = RTInterface::GenerateReadSignature(builder, rightIface);
 
-				RefValueHeader::GenerateStructuralValueKindSwitch(builder, value, &vTableVar, &lambdaBlock, &recordBlock, &unimplementedBlock);
+		//		RefValueHeader::GenerateStructuralValueKindSwitch(builder, value, &vTableVar, &lambdaBlock, &recordBlock, &unimplementedBlock);
 
-				if (lambdaBlock != nullptr)
-				{
-					builder->SetInsertPoint(lambdaBlock);
-					auto interfaceFlag = RTInterface::GenerateReadFlags(builder, rightIface);
-					auto flagTarget = MakeIntLike(interfaceFlag, (long)(RTInterfaceFlags::IsFunctional | RTInterfaceFlags::IsInterface));
-					builder->CreateCondBr(builder->CreateICmpEQ(builder->CreateAnd(interfaceFlag, flagTarget), flagTarget), checkSignatureBlock, notFunctionalInterface, GetLikelyFirstBranchMetadata());
-				}
+		//		if (lambdaBlock != nullptr)
+		//		{
+		//			builder->SetInsertPoint(lambdaBlock);
+		//			auto interfaceFlag = RTInterface::GenerateReadFlags(builder, rightIface);
+		//			auto flagTarget = MakeIntLike(interfaceFlag, static_cast<uint64_t>(RTInterfaceFlags::IsFunctional | RTInterfaceFlags::IsInterface));
+		//			builder->CreateCondBr(builder->CreateICmpEQ(builder->CreateAnd(interfaceFlag, flagTarget), flagTarget), checkSignatureBlock, notFunctionalInterface, GetLikelyFirstBranchMetadata());
+		//		}
 
-				if (recordBlock != nullptr)
-				{
-					builder->SetInsertPoint(recordBlock);
-					builder->CreateBr(checkSignatureRequiredBlock);
-				}
+		//		if (recordBlock != nullptr)
+		//		{
+		//			builder->SetInsertPoint(recordBlock);
+		//			builder->CreateBr(checkSignatureRequiredBlock);
+		//		}
 
-				builder->SetInsertPoint(checkSignatureRequiredBlock);
-				builder->CreateCondBr(builder->CreateIsNull(interfaceSig), tryWriteTypeCastBlock, checkHasLambdaBlock);
+		//		builder->SetInsertPoint(checkSignatureRequiredBlock);
+		//		builder->CreateCondBr(builder->CreateIsNull(interfaceSig), tryWriteTypeCastBlock, checkHasLambdaBlock);
 
-				builder->SetInsertPoint(checkHasLambdaBlock);
-				auto hasLambda = RTVTable::GenerateHasRawInvoke(builder, vTableVar);
-				builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { hasLambda, MakeUInt(1,1) });
-				builder->CreateCondBr(hasLambda, checkSignatureBlock, failBlock, GetLikelyFirstBranchMetadata());
+		//		builder->SetInsertPoint(checkHasLambdaBlock);
+		//		auto hasLambda = RTVTable::GenerateHasRawInvoke(builder, vTableVar);
+		//		builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { hasLambda, MakeUInt(1,1) });
+		//		builder->CreateCondBr(hasLambda, checkSignatureBlock, failBlock, GetLikelyFirstBranchMetadata());
 
-				if (RTConfig_CheckLambdaSignaturesAtCast)
-				{
-					//TODO: implement if needed
-					//BasicBlock* pessimisticSignatureMatchBlock = BasicBlock::Create(LLVMCONTEXT, "pessimisticSignatureMatch", fun);
-					//BasicBlock* optimisticSignatureMatchBlock = BasicBlock::Create(LLVMCONTEXT, "optimisticSignatureMatch", fun);
-					//builder->SetInsertPoint(checkSignatureBlock);
+		//		if (RTConfig_CheckLambdaSignaturesAtCast)
+		//		{
+		//			//TODO: implement if needed
+		//			//BasicBlock* pessimisticSignatureMatchBlock = BasicBlock::Create(LLVMCONTEXT, "pessimisticSignatureMatch", fun);
+		//			//BasicBlock* optimisticSignatureMatchBlock = BasicBlock::Create(LLVMCONTEXT, "optimisticSignatureMatch", fun);
+		//			//builder->SetInsertPoint(checkSignatureBlock);
 
-					//auto sigSubst = builder->CreateAlloca(RTSubtyping::TypeArgumentListStackType());
-					//MakeStore(builder, outerStack, builder->CreateGEP(sigSubst, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Next) }));
-					//MakeStore(builder, rightTypeArgs, builder->CreateGEP(sigSubst, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Types) }));
+		//			//auto sigSubst = builder->CreateAlloca(RTSubtyping::TypeArgumentListStackType());
+		//			//MakeStore(builder, outerStack, builder->CreateGEP(sigSubst, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Next) }));
+		//			//MakeStore(builder, rightTypeArgs, builder->CreateGEP(sigSubst, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Types) }));
 
-					//auto signatureMatch = builder->CreateCall(signatureSubtyping, { structuralValueSig, ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo()), interfaceSig, sigSubst }, "signatureMatch");
-					//signatureMatch->setCallingConv(signatureSubtyping->getCallingConv());
-					//auto signatureMatchSwitch = builder->CreateSwitch(signatureMatch, failBlock, 2);
-					//signatureMatchSwitch->addCase(MakeInt(2, (uint64_t)3), pessimisticSignatureMatchBlock);
-					//signatureMatchSwitch->addCase(MakeInt(2, (uint64_t)1), optimisticSignatureMatchBlock);
-				}
+		//			//auto signatureMatch = builder->CreateCall(signatureSubtyping, { structuralValueSig, ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo()), interfaceSig, sigSubst }, "signatureMatch");
+		//			//signatureMatch->setCallingConv(signatureSubtyping->getCallingConv());
+		//			//auto signatureMatchSwitch = builder->CreateSwitch(signatureMatch, failBlock, 2);
+		//			//signatureMatchSwitch->addCase(MakeInt(2, (uint64_t)3), pessimisticSignatureMatchBlock);
+		//			//signatureMatchSwitch->addCase(MakeInt(2, (uint64_t)1), optimisticSignatureMatchBlock);
+		//		}
 
-				builder->SetInsertPoint(tryWriteTypeCastBlock);
-				auto uniquedType = builder->CreateCall(typeUniqueFun, { rightType, outerStack });
-				uniquedType->setCallingConv(typeUniqueFun->getCallingConv());
-				if (NomCastStats)
-				{
-					builder->CreateCall(GetIncImpositionsFunction(*fun->getParent()), {});
-				}
-				auto cmpxresult = StructuralValueHeader::GenerateWriteCastTypePointerCMPXCHG(builder, value, builder->CreatePointerCast(uniquedType, POINTERTYPE), currentCastData);
-				auto updateSuccess = builder->CreateExtractValue(cmpxresult, ArrayRef<unsigned int>(extractIndex + 1, 1));
-				builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { updateSuccess, MakeUInt(1,1) });
-				builder->CreateCondBr(updateSuccess, successBlock, cmpxchgFailBlock, GetLikelyFirstBranchMetadata());
+		//		builder->SetInsertPoint(tryWriteTypeCastBlock);
+		//		auto uniquedType = builder->CreateCall(typeUniqueFun, { rightType, outerStack });
+		//		uniquedType->setCallingConv(typeUniqueFun->getCallingConv());
+		//		if (NomCastStats)
+		//		{
+		//			builder->CreateCall(GetIncImpositionsFunction(*fun->getParent()), {});
+		//		}
+		//		auto cmpxresult = StructuralValueHeader::GenerateWriteCastTypePointerCMPXCHG(builder, value, builder->CreatePointerCast(uniquedType, POINTERTYPE), currentCastData);
+		//		auto updateSuccess = builder->CreateExtractValue(cmpxresult, ArrayRef<unsigned int>(extractIndex + 1, 1));
+		//		builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { updateSuccess, MakeUInt(1,1) });
+		//		builder->CreateCondBr(updateSuccess, successBlock, cmpxchgFailBlock, GetLikelyFirstBranchMetadata());
 
-				builder->SetInsertPoint(cmpxchgFailBlock);
-				lambdaCastTypeOnFirstFail = builder->CreateExtractValue(cmpxresult, ArrayRef<unsigned int>(extractIndex, 1));
-				builder->CreateBr(multiCastBlock);
-			}
+		//		builder->SetInsertPoint(cmpxchgFailBlock);
+		//		lambdaCastTypeOnFirstFail = builder->CreateExtractValue(cmpxresult, ArrayRef<unsigned int>(extractIndex, 1));
+		//		builder->CreateBr(multiCastBlock);
+		//	}
 
-			{
-				builder->SetInsertPoint(multiCastBlock);
-				auto lambdaCastTypePHI = builder->CreatePHI(currentCastData->getType(), 2);
-				lambdaCastTypePHI->addIncoming(currentCastData, incomingBlock);
-				lambdaCastTypePHI->addIncoming(lambdaCastTypeOnFirstFail, cmpxchgFailBlock);
+		//	{
+		//		builder->SetInsertPoint(multiCastBlock);
+		//		auto lambdaCastTypePHI = builder->CreatePHI(currentCastData->getType(), 2);
+		//		lambdaCastTypePHI->addIncoming(currentCastData, incomingBlock);
+		//		lambdaCastTypePHI->addIncoming(lambdaCastTypeOnFirstFail, cmpxchgFailBlock);
 
-				BasicBlock* singleCastEntryBlock = BasicBlock::Create(LLVMCONTEXT, "singleCastEntry", fun);
-				BasicBlock* multiCastListBlock = BasicBlock::Create(LLVMCONTEXT, "multiCastList", fun);
+		//		BasicBlock* singleCastEntryBlock = BasicBlock::Create(LLVMCONTEXT, "singleCastEntry", fun);
+		//		BasicBlock* multiCastListBlock = BasicBlock::Create(LLVMCONTEXT, "multiCastList", fun);
 
-				auto lambdaCastTag = builder->CreateTrunc(builder->CreatePtrToInt(lambdaCastTypePHI, numtype(intptr_t)), inttype(1));
-				builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { lambdaCastTag, MakeUInt(1,0) });
-				builder->CreateCondBr(lambdaCastTag, multiCastListBlock, singleCastEntryBlock, GetLikelySecondBranchMetadata());
+		//		auto lambdaCastTag = builder->CreateTrunc(builder->CreatePtrToInt(lambdaCastTypePHI, numtype(intptr_t)), inttype(1));
+		//		builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { lambdaCastTag, MakeUInt(1,0) });
+		//		builder->CreateCondBr(lambdaCastTag, multiCastListBlock, singleCastEntryBlock, GetLikelySecondBranchMetadata());
 
-				builder->SetInsertPoint(singleCastEntryBlock);
-				auto cleanLeftType = builder->CreateIntToPtr(builder->CreateAnd(builder->CreatePtrToInt(lambdaCastTypePHI, numtype(intptr_t)), ConstantExpr::getXor(llvm::ConstantInt::getAllOnesValue(numtype(intptr_t)), MakeInt<intptr_t>(7))), TYPETYPE);
-				auto subtypingCall = builder->CreateCall(subtypingFun, { cleanLeftType, rightType, ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo()), outerStack });
-				subtypingCall->setCallingConv(subtypingFun->getCallingConv());
-				auto subtypingSuccess = builder->CreateICmpEQ(subtypingCall, MakeIntLike(subtypingCall, 3));
-				builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { subtypingSuccess, MakeUInt(1,1) });
-				builder->CreateCondBr(subtypingSuccess, successBlock, unimplementedBlock, GetLikelyFirstBranchMetadata());
+		//		builder->SetInsertPoint(singleCastEntryBlock);
+		//		auto cleanLeftType = builder->CreateIntToPtr(builder->CreateAnd(builder->CreatePtrToInt(lambdaCastTypePHI, numtype(intptr_t)), ConstantExpr::getXor(llvm::ConstantInt::getAllOnesValue(numtype(intptr_t)), MakeInt<intptr_t>(7))), TYPETYPE);
+		//		auto subtypingCall = builder->CreateCall(subtypingFun, { cleanLeftType, rightType, ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo()), outerStack });
+		//		subtypingCall->setCallingConv(subtypingFun->getCallingConv());
+		//		auto subtypingSuccess = builder->CreateICmpEQ(subtypingCall, MakeIntLike(subtypingCall, 3));
+		//		builder->CreateIntrinsic(Intrinsic::expect, { inttype(1) }, { subtypingSuccess, MakeUInt(1,1) });
+		//		builder->CreateCondBr(subtypingSuccess, successBlock, unimplementedBlock, GetLikelyFirstBranchMetadata());
 
-				builder->SetInsertPoint(multiCastListBlock);
-				builder->CreateBr(unimplementedBlock);
-			}
-		}
+		//		builder->SetInsertPoint(multiCastListBlock);
+		//		builder->CreateBr(unimplementedBlock);
+		//	}
+		//}
 	}
 }

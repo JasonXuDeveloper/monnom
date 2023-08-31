@@ -1,8 +1,10 @@
 #include "NomRecordMethod.h"
 #include "NomRecord.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Verifier.h"
-#include <iostream>
 #include "llvm/Support/raw_os_ostream.h"
+POPDIAGSUPPRESSION
+#include <iostream>
 #include "CompileEnv.h"
 #include "CallingConvConf.h"
 #include "NomBuilder.h"
@@ -13,7 +15,7 @@ namespace Nom
 {
 	namespace Runtime
 	{
-		NomRecordMethod::NomRecordMethod(const NomRecord* container, std::string& name, std::string& qname, ConstantID typeParameters, ConstantID returnType, ConstantID argTypes, RegIndex regcount) : NomCallableLoaded(name, container, qname, regcount, typeParameters, argTypes), Container(container), /*ArgumentTypes(argTypes),*/ ReturnType(returnType)
+		NomRecordMethod::NomRecordMethod(const NomRecord* _container, std::string& _name, std::string& _qname, ConstantID _typeParameters, ConstantID _returnType, ConstantID _argTypes, RegIndex _regcount) : NomCallableLoaded(_name, _container, _qname, _regcount, _typeParameters, _argTypes), Container(_container), ReturnType(_returnType)
 		{
 		}
 		llvm::Function* NomRecordMethod::createLLVMElement(llvm::Module& mod, llvm::GlobalValue::LinkageTypes linkage) const
@@ -22,7 +24,7 @@ namespace Nom
 			auto fun = Function::Create(GetLLVMFunctionType(), linkage, *GetSymbolName(), &mod);
 			fun->setCallingConv(NOMCC);
 
-			StructMethodCompileEnv menv = StructMethodCompileEnv(regcount, name, fun, &phiNodes, this->GetDirectTypeParameters(), this->GetArgumentTypes(nullptr), this);
+			StructMethodCompileEnv menv = StructMethodCompileEnv(builder, regcount, name, fun, &phiNodes, this->GetDirectTypeParameters(), this->GetArgumentTypes(nullptr), this);
 			CompileEnv* env = &menv;
 
 			BasicBlock* startBlock = BasicBlock::Create(LLVMCONTEXT, name + "start", fun);
@@ -56,19 +58,11 @@ namespace Nom
 			}
 			return fun;
 		}
-		NomTypeRef NomRecordMethod::GetReturnType(const NomSubstitutionContext* context) const
+		NomTypeRef NomRecordMethod::GetReturnType([[maybe_unused]] const NomSubstitutionContext* context) const
 		{
 			NomSubstitutionContextMemberContext nscmc(this);
 			return NomConstants::GetType(&nscmc, ReturnType);
 		}
-		//TypeList NomRecordMethod::GetArgumentTypes(const NomSubstitutionContext* context) const
-		//{
-		//	return NomConstants::GetTypeList(ArgumentTypes)->GetTypeList(this);
-		//}
-		//int NomRecordMethod::GetArgumentCount() const
-		//{
-		//	return GetArgumentTypes().size();
-		//}
 		llvm::FunctionType* NomRecordMethod::GetLLVMFunctionType(const NomSubstitutionContext* context) const
 		{
 			auto args_ = GetArgumentTypes(context);

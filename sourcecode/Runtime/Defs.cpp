@@ -1,10 +1,12 @@
+PUSHDIAGSUPPRESSION
+#include "llvm/Support/raw_os_ostream.h"
+POPDIAGSUPPRESSION
 #include "Defs.h"
 #include "ObjectHeader.h"
 #include "StringClass.h"
 #include "NomAlloc.h"
 #include "NomJIT.h"
 #include <iostream>
-#include "llvm/Support/raw_os_ostream.h"
 #include "GlobalNameAddressLookupList.h"
 #include "BoolClass.h"
 #include "instructions/CastInstruction.h"
@@ -15,20 +17,20 @@ namespace Nom
 {
 	namespace Runtime
 	{
-		llvm::PointerType * BytecodeTypes::GetRefType() {
+		NLLVMPointer &BytecodeTypes::GetRefType() {
 			//static llvm::Type * refType = (llvm::StructType::create(Nom::Runtime::TheContext)->getPointerTo());
-			static llvm::PointerType *refType = RefValueHeader::GetLLVMType()->getPointerTo();
+			static NLLVMPointer refType = NLLVMPointer(RefValueHeader::GetLLVMType());
 			return refType;
 		}
 
-		llvm::PointerType * BytecodeTypes::GetTypeType()
+		NLLVMPointer &BytecodeTypes::GetTypeType()
 		{
-			static llvm::PointerType* typeType = RTTypeHead::GetLLVMType()->getPointerTo();
+			static NLLVMPointer typeType = NLLVMPointer(RTTypeHead::GetLLVMType());
 			return typeType;
 		}
 
 
-		std::vector<std::string> globalsForAddressLookup;
+		[[clang::no_destroy]] static std::vector<std::string> globalsForAddressLookup;
 		void RegisterGlobalForAddressLookup(std::string name)
 		{
 			globalsForAddressLookup.push_back(name);
@@ -43,9 +45,9 @@ namespace Nom
 extern "C" DLLEXPORT void RT_NOM_PRINT_STORE(void* val, void* addr)
 {
 	std::cout << "(";
-	std::cout << std::hex << (intptr_t)val;
+	std::cout << std::hex << reinterpret_cast<intptr_t>(val);
 	std::cout << "->";
-	std::cout << std::hex << (intptr_t)addr;
+	std::cout << std::hex << reinterpret_cast<intptr_t>(addr);
 	std::cout << ")";
 	std::cout.flush();
 }
@@ -53,9 +55,9 @@ extern "C" DLLEXPORT void RT_NOM_PRINT_STORE(void* val, void* addr)
 extern "C" DLLEXPORT void RT_NOM_PRINT_LOAD(void* val, void* addr)
 {
 	std::cout << "(";
-	std::cout << std::hex << (intptr_t)val;
+	std::cout << std::hex << reinterpret_cast<intptr_t>(val);
 	std::cout << "<-";
-	std::cout << std::hex << (intptr_t)addr;
+	std::cout << std::hex << reinterpret_cast<intptr_t>(addr);
 	std::cout << ")";
 	std::cout.flush();
 }

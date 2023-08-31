@@ -1,11 +1,14 @@
 #include "RTMaybeType.h"
 #include "RTTypeHead.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Constant.h"
+POPDIAGSUPPRESSION
 #include "Defs.h"
 #include "CompileHelpers.h"
 #include "NullClass.h"
 #include "Metadata.h"
 #include "CallingConvConf.h"
+#include "PWMaybeType.h"
 
 using namespace llvm;
 namespace Nom
@@ -26,7 +29,7 @@ namespace Nom
 			}
 			return llvmtype;
 		}
-		llvm::Constant* GetMaybeTypeCastFunction(llvm::Module& mod)
+		static llvm::Constant* GetMaybeTypeCastFunction(llvm::Module& mod)
 		{
 			static llvm::Module* mainModule = nullptr;
 			GlobalValue::LinkageTypes linkage = GlobalValue::LinkageTypes::ExternalLinkage;
@@ -36,7 +39,7 @@ namespace Nom
 			}
 			else if(mainModule!=&mod)
 			{
-				GlobalValue::LinkageTypes linkage = GlobalValue::LinkageTypes::AvailableExternallyLinkage;
+				linkage = GlobalValue::LinkageTypes::AvailableExternallyLinkage;
 			}
 			auto fun = mod.getFunction("MONNOM_RT_TYPECAST_MAYBE");
 			if (fun == nullptr)
@@ -77,11 +80,11 @@ namespace Nom
 		}
 		uint64_t RTMaybeType::HeadOffset()
 		{
-			static const uint64_t offset = GetLLVMLayout()->getElementOffset((unsigned char)RTMaybeTypeFields::Head); return offset;
+			static const uint64_t offset = GetLLVMLayout()->getElementOffset(static_cast<unsigned char>(RTMaybeTypeFields::Head)); return offset;
 		}
 		llvm::Value* RTMaybeType::GenerateReadPotentialType(NomBuilder& builder, llvm::Value* type)
 		{
-			return MakeLoad(builder, builder->CreatePointerCast(type, GetLLVMType()->getPointerTo()), MakeInt<RTMaybeTypeFields>(RTMaybeTypeFields::PotentialType));
+			return PWMaybeType(type).ReadPotentialType(builder);
 		}
 	}
 }

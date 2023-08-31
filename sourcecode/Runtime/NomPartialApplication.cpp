@@ -3,9 +3,11 @@
 #include <unordered_map>
 #include "RTSubtyping.h"
 #include "CompileHelpers.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/Support/raw_os_ostream.h"
-#include <iostream>
 #include "llvm/IR/Verifier.h"
+POPDIAGSUPPRESSION
+#include <iostream>
 #include "RTOutput.h"
 #include "NomNameRepository.h"
 #include "RTDescriptor.h"
@@ -20,6 +22,10 @@
 #include "CallingConvConf.h"
 #include "CompileEnv.h"
 #include "RTCompileConfig.h"
+#include "PWObject.h"
+#include "PWPartialApp.h"
+#include "PWTypeArr.h"
+#include "PWType.h"
 
 using namespace std;
 using namespace llvm;
@@ -31,17 +37,16 @@ namespace Nom
 		{
 		public:
 			const NomCallable* const Callable;
-			NomPartialApplicationDispatcherEnv(llvm::Value* receiver, RegIndex regcount, const llvm::Twine contextName, llvm::Function* function, llvm::ArrayRef<NomTypeParameterRef> typeParams, llvm::ArrayRef<llvm::Value*> typeArgValues, const NomCallable* method) : ACompileEnv(regcount, contextName, function, method->GetParent(), nullptr, typeParams, typeArgValues), Callable(method)
+			NomPartialApplicationDispatcherEnv(NomBuilder &builder, RTValuePtr _receiver, RegIndex _regcount, const llvm::Twine _contextName, llvm::Function* _function, llvm::ArrayRef<NomTypeParameterRef> _typeParams, llvm::ArrayRef<llvm::Value*> _typeArgValues, const NomCallable* _method) : ACompileEnv(builder, _regcount, _contextName, _function, _method->GetParent(), nullptr, _typeParams, _typeArgValues), Callable(_method)
 			{
-				registers[0] = receiver;
+				registers[0] = _receiver;
 			}
 			// Inherited via CompileEnv
-			virtual NomTypeVarValue GetTypeArgument(NomBuilder& builder, int i) override
+			virtual NomTypeVarValue GetTypeArgument(NomBuilder& builder, size_t i) override
 			{
-				if ((size_t)i < Callable->GetTypeParametersStart())
+				if (i < Callable->GetTypeParametersStart())
 				{
 					return NomTypeVarValue(ObjectHeader::GenerateReadTypeArgument(builder, registers[0], i + Callable->GetParent()->GetTypeParametersStart()), Context->GetTypeParameter(i)->GetVariable());
-					//	builder->CreateGEP(thisObj, { MakeInt<int32_t>(0), MakeInt<int32_t>(), MakeInt<int32_t>(i + envTypeArgStart) }), Context->GetTypeVariable(i));
 				}
 				else
 				{
@@ -52,13 +57,17 @@ namespace Nom
 			{
 				return Callable->GetTypeParametersCount() - Callable->GetDirectTypeParametersCount();
 			}
-			virtual llvm::Value* GetEnvTypeArgumentArray(NomBuilder& builder) override
+			virtual PWTypeArr GetEnvTypeArgumentArray(NomBuilder& builder) override
 			{
-				return builder->CreateGEP(ObjectHeader::GeneratePointerToTypeArguments(builder, registers[0]), MakeInt32((uint32_t)Callable->GetParent()->GetTypeParametersStart()));
+				return PWObject(registers[0]).PointerToTypeArguments(builder).SubArr(builder, PWInt32(Callable->GetParent()->GetTypeParametersStart(), false));
 			}
 			virtual bool GetInConstructor() override
 			{
 				return false;
+			}
+			virtual NomTypeRef GetReturnType() override
+			{
+				return Callable->GetReturnType();
 			}
 		};
 		class NomPartialApplicationDispatcherEntry : public NomCallable, public NomMemberContextInternal
@@ -66,33 +75,18 @@ namespace Nom
 		private:
 			const std::string name;
 			const std::string qname;
-			//int32_t argCount;
+			NomTypeRef thisType;
 			llvm::ArrayRef<const NomCallable*> overloadings;
-			//NomTypeRef thisType;
-			//TypeList argTypes;
 		public:
-			NomPartialApplicationDispatcherEntry(const NomMemberContext* parent, llvm::ArrayRef<const NomCallable*> overloadings/*, size_t typeArgCount, int32_t argCount, NomTypeRef thisType*/) : NomCallable(), NomMemberContextInternal(parent), name("NOM_OD_" + overloadings[0]->GetQName() /*+ "$$$" + to_string(typeArgCount) + "$" + to_string(argCount)*/), qname("NOM_OD_" + overloadings[0]->GetQName() /*+ "$$$" + to_string(typeArgCount) + "$" + to_string(argCount)*/), /*argCount(argCount),*/ overloadings(overloadings)/*, thisType(thisType)*/
+			NomPartialApplicationDispatcherEntry(const NomMemberContext* _parent, NomTypeRef _thisType, llvm::ArrayRef<const NomCallable*> _overloadings) : NomCallable(), NomMemberContextInternal(_parent), name("NOM_OD_" + _overloadings[0]->GetQName()), qname("NOM_OD_" + _overloadings[0]->GetQName()), thisType(_thisType), overloadings(_overloadings)
 			{
-				//NomTypeParameterRef* typeArgBuf = makenmalloc(NomTypeParameterRef, typeArgCount);
-				//for (decltype(typeArgCount) i = 0; i < typeArgCount; i++)
-				//{
-				//	typeArgBuf[i] = new NomTypeParameterInternal(parent, i, NomType::AnythingRef, NomType::NothingRef);
-				//}
-				//NomMemberContextInternal::SetDirectTypeParameters(notnullarray(NomTypeParameterRef, typeArgBuf, typeArgCount));
-
-				//NomTypeRef* argBuf = makenmalloc(NomTypeRef, argCount);
-				//for (decltype(argCount) i = 0; i < argCount; i++)
-				//{
-				//	argBuf[i] = NomType::DynamicRef;
-				//}
-				//argTypes = TypeList(argBuf, argCount);
 			}
 			// Inherited via NomCallable
 			virtual Function* createLLVMElement(llvm::Module& mod, llvm::GlobalValue::LinkageTypes linkage) const override
 			{
 				NomBuilder builder;
 				std::string funname = "NOM_OD_" + overloadings[0]->GetQName();
-				Function* dispatcher = Function::Create(NomPartialApplication::GetDynamicDispatcherType(/*typeArgCount, argCount*/), linkage, funname, &mod);
+				Function* dispatcher = Function::Create(NomPartialApplication::GetDynamicDispatcherType(), linkage, funname, &mod);
 				dispatcher->setCallingConv(NOMCC);
 
 				BasicBlock* dispblock = BasicBlock::Create(LLVMCONTEXT, "", dispatcher);
@@ -126,7 +120,7 @@ namespace Nom
 					builder->SetInsertPoint(currentBlock);
 					Value** targValueArr = nullptr;
 
-					llvm::Value** methodargs = makealloca(llvm::Value*, (size_t)typeArgCount + 1 + argCount);
+					llvm::Value** methodargs = makealloca(llvm::Value*, typeArgCount + 1 + argCount);
 					llvm::Value** valargs = nullptr;
 					methodargs[0] = receiver;
 
@@ -141,13 +135,13 @@ namespace Nom
 							}
 							else
 							{
-								targValueArr[i] = MakeLoad(builder, builder->CreateGEP(builder->CreatePointerCast(restArgs[RTConfig_NumberOfVarargsArguments - 1], TYPETYPE->getPointerTo()), MakeInt32(i - (RTConfig_NumberOfVarargsArguments - 1))));
+								targValueArr[i] = MakeLoad(builder, TYPETYPE, builder->CreateGEP(TYPETYPE, restArgs[RTConfig_NumberOfVarargsArguments - 1], MakeInt32(i - (RTConfig_NumberOfVarargsArguments - 1))));
 							}
 							methodargs[i + 1] = targValueArr[i];
 						}
 					}
 					NomSubstitutionContextMemberContext nscmc(this);
-					NomPartialApplicationDispatcherEnv padenv(receiver, argCount + 1, funname, dispatcher, typeParams, ArrayRef<llvm::Value*>(targValueArr, typeArgCount), this);
+					NomPartialApplicationDispatcherEnv padenv(builder, RTValue::GetValue(builder, receiver, thisType), argCount + 1, funname, dispatcher, typeParams, ArrayRef<llvm::Value*>(targValueArr, typeArgCount), this);
 					//TODO: check type argument constraints, if any
 					CompileEnv* env = &padenv;
 					auto methargtypes = meth->GetArgumentTypes(&nscmc);
@@ -160,79 +154,17 @@ namespace Nom
 							if (i + typeArgCount < RTConfig_NumberOfVarargsArguments - (typeArgCount + argCount > RTConfig_NumberOfVarargsArguments ? 1 : 0))
 							{
 								auto nv = NomValue(builder->CreatePointerCast(restArgs[i + typeArgCount], REFTYPE), false);
-								valargs[i] = EnsureType(builder, env, nv, expectedArgType, meth->GetLLVMFunctionType()->getParamType(1 + i + typeArgCount));
+								valargs[i] = EnsureType(builder, env, nv, expectedArgType, meth->GetLLVMFunctionType()->getParamType(static_cast<unsigned int>(1 + i + typeArgCount)));
 							}
 							else
 							{
-								auto nv = NomValue(MakeLoad(builder, builder->CreateGEP(builder->CreatePointerCast(restArgs[RTConfig_NumberOfVarargsArguments - RTConfig_NumberOfVarargsArguments], REFTYPE->getPointerTo()), MakeInt32(i + typeArgCount - (RTConfig_NumberOfVarargsArguments - 1)))), false);
-								valargs[i] = EnsureType(builder, env, nv, expectedArgType, meth->GetLLVMFunctionType()->getParamType(1 + i + typeArgCount));
+								auto nv = NomValue(MakeLoad(builder, REFTYPE, builder->CreateGEP(REFTYPE, restArgs[RTConfig_NumberOfVarargsArguments - RTConfig_NumberOfVarargsArguments], MakeInt32(i + typeArgCount - (RTConfig_NumberOfVarargsArguments - 1)))), false);
+								valargs[i] = EnsureType(builder, env, nv, expectedArgType, meth->GetLLVMFunctionType()->getParamType(static_cast<unsigned int>(1 + i + typeArgCount)));
 							}
 							methodargs[i + typeArgCount + 1] = valargs[i];
 						}
 					}
-
-					//NomTypeRef* argTypesArr = makealloca(NomTypeRef, argCount);
-					//for (decltype(argCount) i = 0; i < argCount; i++)
-					//{
-					//	argTypesArr[i] = &NomDynamicType::Instance();
-					//}
-
-
-
-					//auto dictEntry = new GlobalVariable(mod, GetDescriptorDictionaryEntryType(), true, linkage, CreateDescriptorDictionaryEntryConstant(DescriptorDictionaryEntryKind::Dispatcher, true, Visibility::Public, dispatcher, 0));
-
-					//llvm::Value* targalloca;
-					//if (typeArgCount > 0)
-					//{
-					//	targalloca = builder->CreateAlloca(RTSubtyping::TypeArgumentListStackType());
-					//	auto argfields = builder->CreateAlloca(TYPETYPE, MakeInt<uint32_t>(typeArgCount));
-					//	MakeStore(builder, mod, ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo()), builder->CreateGEP(targalloca, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Next) }));
-					//	MakeStore(builder, mod, argfields, builder->CreateGEP(targalloca, { MakeInt32(0), MakeInt32(TypeArgumentListStackFields::Types) }));
-					//	auto disparg = dispatcher->arg_begin();
-					//	for (decltype(typeArgCount) i = 0; i < typeArgCount; i++, disparg++)
-					//	{
-					//		MakeStore(builder, mod, disparg, builder->CreateGEP(argfields, MakeInt32((int32_t)i)));
-					//	}
-					//}
-					//else
-					//{
-					//	targalloca = llvm::ConstantPointerNull::get(RTSubtyping::TypeArgumentListStackType()->getPointerTo());
-					//}
-					//llvm::Value** typeargtypes = makealloca(llvm::Value*, typeArgCount);
-					//llvm::Value** valargtypes = makealloca(llvm::Value*, argCount);
-					//auto disparg = dispatcher->arg_begin();
-					//we know the this-pointer is ok; that's where we got the dispatcher from in the first place
-					//methodargs[0] = disparg;
-					//disparg++;
-					//for (decltype(typeArgCount) i = 0; i < typeArgCount; i++, disparg++)
-					//{
-					//	typeargtypes[i] = disparg;
-					//	methodargs[i + 1] = disparg;
-					//}
-					//for (decltype(argCount) i = 0; i < argCount; i++, disparg++)
-					//{
-					//	//valargtypes[i] = ObjectHeader::CreateExtractType(builder, mod, disparg);
-					//	valargs[i] = disparg;
-					//	methodargs[i + typeArgCount + 1] = disparg;
-					//}
-
-
-					//BasicBlock* nextMethodBlock = BasicBlock::Create(LLVMCONTEXT, "", dispatcher);
-					//for (decltype(typeArgCount) i = 0; i < typeArgCount; i++)
-					//{
-					//	throw new std::exception(); //TODO: implement checking type argument constraints
-					//}
-
-					//for (decltype(argCount) i = 0; i < argCount; i++)
-					//{
-					//	/*llvm::Value* agg = RTSubtyping::CreateTypeSubtypingCheck(builder, mod, valargtypes[i], methargtypes[i]->GetLLVMElement(mod), ConstantPointerNull::get(
-					//	eArgumentListStackType()->getPointerTo()), targalloca);*/
-					//	llvm::Value* agg = RTCast::GenerateCast(builder, env, valargs[i], methargtypes[i]);
-					//	auto nextBlock = BasicBlock::Create(LLVMCONTEXT, "", dispatcher);
-					//	builder->CreateCondBr(builder->CreateICmpEQ(agg, MakeInt(1, (uint64_t)0)), nextMethodBlock, nextBlock);
-					//	builder->SetInsertPoint(nextBlock);
-					//}
-					auto fcargs = ArrayRef<llvm::Value*>(methodargs, (size_t)typeArgCount + 1 + argCount);
+					auto fcargs = ArrayRef<llvm::Value*>(methodargs, typeArgCount + 1 + argCount);
 					auto methcall = GenerateFunctionCall(builder, mod, meth->GetLLVMElement(mod), fcargs, true);
 					if (methcall->getCallingConv() == llvm::CallingConv::Fast)
 					{
@@ -244,7 +176,7 @@ namespace Nom
 					{
 						retval = PackBool(builder, methcall);
 					}
-					else if (mctype->isIntegerTy(INTTYPE->getPrimitiveSizeInBits()))
+					else if (mctype->isIntegerTy(static_cast<unsigned int>(INTTYPE->getPrimitiveSizeInBits())))
 					{
 						retval = PackInt(builder, methcall);
 					}
@@ -271,15 +203,7 @@ namespace Nom
 				}
 				return dispatcher;
 			}
-			//virtual NomTypeRef GetReturnType() const override
-			//{
-			//	return &NomDynamicType::Instance();
-			//}
-			//virtual TypeList GetArgumentTypes() const override
-			//{
-			//	return TypeList();
-			//}
-			virtual int GetArgumentCount() const override
+			virtual size_t GetArgumentCount() const override
 			{
 				throw new std::exception();
 				//return argCount;
@@ -302,7 +226,7 @@ namespace Nom
 				}
 				return ret;
 			}
-			virtual TypeList GetArgumentTypes(const NomSubstitutionContext* context) const override
+			virtual TypeList GetArgumentTypes([[maybe_unused]] const NomSubstitutionContext* context) const override
 			{
 				throw new std::exception();
 				//return argTypes;
@@ -310,7 +234,7 @@ namespace Nom
 			virtual llvm::FunctionType* GetLLVMFunctionType(const NomSubstitutionContext* context = nullptr) const override
 			{
 				std::vector<llvm::Type* > args(GetDirectTypeParametersCount() + GetArgumentCount() + 1);
-				unsigned int j = 0;
+				size_t j = 0;
 				if (GetParent() == NomIntClass::GetInstance())
 				{
 					args[j] = INTTYPE;
@@ -327,7 +251,7 @@ namespace Nom
 				{
 					args[j] = TYPETYPE;
 				}
-				unsigned int i;
+				size_t i;
 				auto argtypes = (GetArgumentTypes(context));
 				for (i = 0; i < GetArgumentCount(); i++)
 				{
@@ -348,14 +272,14 @@ namespace Nom
 				return GetDirectTypeParameters();
 			}
 		};
-		NomPartialApplication::NomPartialApplication(const std::string symbolName, llvm::ArrayRef<const NomCallable*> methods, const NomMemberContext* context, NomTypeRef thisType) : /*NomDescriptor("RT_NOM_PA_DICT_" + symbolName),*/  context(context), thisType(thisType), SymbolName("RT_NOM_PA_" + symbolName)
+		NomPartialApplication::NomPartialApplication(const std::string _symbolName, llvm::ArrayRef<const NomCallable*> _methods, const NomMemberContext* _context, NomTypeRef _thisType) : context(_context), thisType(_thisType), SymbolName("RT_NOM_PA_" + _symbolName)
 		{
-			for (const NomCallable* meth : methods)
+			for (const NomCallable* meth : _methods)
 			{
 				this->methods.push_back(meth);
 			}
 		}
-		llvm::FunctionType* NomPartialApplication::GetDynamicDispatcherType(/*uint32_t typeargcount, uint32_t argcount*/)
+		llvm::FunctionType* NomPartialApplication::GetDynamicDispatcherType()
 		{
 			static FunctionType* ft = nullptr;
 			static bool once = false;
@@ -373,43 +297,29 @@ namespace Nom
 				once = true;
 			}
 			return ft;
-
-			//llvm::Type** argtypes = makealloca(llvm::Type*, (size_t)typeargcount + argcount + 1);
-			//uint32_t pos = 0;
-			//argtypes[pos] = REFTYPE;
-			//pos++;
-			//for (; pos < typeargcount; pos++)
-			//{
-			//	argtypes[pos] = TYPETYPE;
-			//}
-			//for (; pos < typeargcount + argcount + 1; pos++)
-			//{
-			//	argtypes[pos] = REFTYPE;
-			//}
-			//return llvm::FunctionType::get(REFTYPE, llvm::ArrayRef<llvm::Type*>(argtypes, (size_t)typeargcount + argcount + 1), false);
 		}
 
-		llvm::Function* NomPartialApplication::GetDispatcherEntry(llvm::Module& mod, llvm::GlobalValue::LinkageTypes linkage,/* int32_t typeArgCount, int32_t argCount,*/ llvm::ArrayRef<const NomCallable*> overloadings, const NomMemberContext* context/*, NomTypeRef thisType*/)
+		llvm::Function* NomPartialApplication::GetDispatcherEntry(llvm::Module& mod, NomTypeRef thisType, llvm::GlobalValue::LinkageTypes linkage,/* int32_t typeArgCount, int32_t argCount,*/ llvm::ArrayRef<const NomCallable*> overloadings, const NomMemberContext* context/*, NomTypeRef thisType*/)
 		{
-			return ((new NomPartialApplicationDispatcherEntry(context, overloadings/*, typeArgCount, argCount, thisType*/))->createLLVMElement(mod, linkage));
+			return ((new NomPartialApplicationDispatcherEntry(context, thisType, overloadings/*, typeArgCount, argCount, thisType*/))->createLLVMElement(mod, linkage));
 		}
 
 		llvm::Constant* NomPartialApplication::createLLVMElement(llvm::Module& mod, llvm::GlobalValue::LinkageTypes linkage) const
 		{
-			unordered_map<uint32_t, unordered_map<uint32_t, vector<const NomCallable*>>> overloadings;
+			unordered_map<size_t, unordered_map<size_t, vector<const NomCallable*>>> overloadings;
 
-			int32_t dispcount = 0;
+			size_t dispcount = 0;
 
 			for (const NomCallable* meth : methods)
 			{
-				uint32_t dtac = meth->GetDirectTypeParametersCount();
+				size_t dtac = meth->GetDirectTypeParametersCount();
 				auto tamatch = overloadings.find(dtac);
 				if (tamatch == overloadings.end())
 				{
-					overloadings[dtac] = unordered_map<uint32_t, vector<const NomCallable* >>();
+					overloadings[dtac] = unordered_map<size_t, vector<const NomCallable* >>();
 				}
 				auto& ole = overloadings[dtac];
-				uint32_t tpc = meth->GetArgumentCount();
+				size_t tpc = meth->GetArgumentCount();
 				auto argmatch = ole.find(tpc);
 				if (argmatch == ole.end())
 				{
@@ -419,25 +329,20 @@ namespace Nom
 				ole[tpc].push_back(meth);
 			}
 
-			using npa_arg = pair<pair<uint32_t, uint32_t>, Constant*>;
+			using npa_arg = pair<pair<size_t, size_t>, Constant*>;
 			auto argsbuf = makealloca(npa_arg, dispcount);
-			int32_t constantsBufPos = 0;
+			size_t constantsBufPos = 0;
 
 			for (auto& ole1 : overloadings)
 			{
 				for (auto& ole2 : ole1.second)
 				{
-					argsbuf[constantsBufPos] = make_pair(make_pair(ole1.first, ole2.first), ConstantExpr::getPointerCast(GetDispatcherEntry(mod, linkage, /*ole1.first, ole2.first,*/ ole2.second, context/*, thisType*/), POINTERTYPE));
+					argsbuf[constantsBufPos] = make_pair(make_pair(ole1.first, ole2.first), ConstantExpr::getPointerCast(GetDispatcherEntry(mod, thisType, linkage, /*ole1.first, ole2.first,*/ ole2.second, context/*, thisType*/), POINTERTYPE));
 					constantsBufPos++;
-
-					//DICTKEYTYPE entryKey = NomNameRepository::Instance().GetDispatchID(ole1.first, ole2.first);
-					//dictionary->AddEntryKey(entryKey);
 				}
 			}
 			auto cnst = RTPartialApp::CreateConstant(llvm::ArrayRef<npa_arg>(argsbuf, dispcount));
 			llvm::GlobalVariable* gv = new llvm::GlobalVariable(mod, cnst->getType(), true, linkage, cnst, SymbolName);
-			//auto dgvtype = arrtype(GetDescriptorDictionaryEntryType()->getPointerTo(), dispcount);
-			//GlobalVariable* dgv = new GlobalVariable(mod, dgvtype, true, linkage, llvm::ConstantArray::get(dgvtype, llvm::ArrayRef<llvm::Constant*>(constantsBuf, dispcount)), dictionary->SymbolName);
 
 			return ConstantExpr::getPointerCast(gv, RTPartialApp::GetLLVMType()->getPointerTo());
 		}

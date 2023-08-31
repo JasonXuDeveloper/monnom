@@ -1,8 +1,10 @@
 #pragma once
 #include "NomInstruction.h"
 #include "CompileEnv.h"
+PUSHDIAGSUPPRESSION
 #include "llvm/IR/Value.h"
-
+POPDIAGSUPPRESSION
+#include "RTValue.h"
 
 namespace Nom
 {
@@ -22,7 +24,7 @@ namespace Nom
 
 			}
 
-			void RegisterValue(CompileEnv* env, NomValue value)
+			void RegisterValue(CompileEnv* env, RTValuePtr value)
 			{
 				(*env)[WriteRegister] = value;
 			}

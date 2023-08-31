@@ -20,6 +20,7 @@
 #include "../CastStats.h"
 #include "../NomLambdaCallTag.h"
 #include "../IMT.h"
+#include "../PWDispatchPair.h"
 
 using namespace llvm;
 using namespace std;
@@ -27,7 +28,7 @@ namespace Nom
 {
 	namespace Runtime
 	{
-		CallDispatchBestMethod::CallDispatchBestMethod(RegIndex reg, RegIndex receiver, ConstantID methodName, ConstantID typeArgs) : NomValueInstruction(reg, OpCode::CallDispatchBest), Receiver(receiver), MethodName(methodName), TypeArguments(typeArgs)
+		CallDispatchBestMethod::CallDispatchBestMethod(RegIndex _reg, RegIndex _receiver, ConstantID _methodName, ConstantID _typeArgs) : NomValueInstruction(_reg, OpCode::CallDispatchBest), Receiver(_receiver), MethodName(_methodName), TypeArguments(_typeArgs)
 		{
 		}
 
@@ -36,14 +37,14 @@ namespace Nom
 		{
 		}
 
-		void CallDispatchBestMethod::Compile(NomBuilder& builder, CompileEnv* env, int lineno)
+		void CallDispatchBestMethod::Compile(NomBuilder& builder, CompileEnv* env, [[maybe_unused]] size_t lineno)
 		{
 			auto methodName = NomConstants::GetString(MethodName)->GetText()->ToStdString();
 			NomSubstitutionContextMemberContext nscmc(env->Context);
 			auto typeargs = NomConstants::GetTypeList(TypeArguments)->GetTypeList(&nscmc);
 
-			int typeargcount = typeargs.size();
-			int argcount = env->GetArgCount();
+			size_t typeargcount = typeargs.size();
+			size_t argcount = env->GetArgCount();
 
 			auto dispatcherPair = env->PopDispatchPair();
 
@@ -59,7 +60,7 @@ namespace Nom
 			Value* extArgArray = nullptr;
 			if (dispargcount > RTConfig_NumberOfVarargsArguments)
 			{
-				extArgArray = builder->CreateAlloca(POINTERTYPE, dispargcount - 2);
+				extArgArray = builder->CreateAlloca(POINTERTYPE, MakeInt32(dispargcount - 2));
 				argbuf[RTConfig_NumberOfVarargsArguments + 2] = builder->CreatePointerCast(extArgArray, POINTERTYPE);
 			}
 			while (argbufpos < typeargcount)
@@ -71,7 +72,7 @@ namespace Nom
 				}
 				else
 				{
-					MakeStore(builder, targ, builder->CreateGEP(extArgArray, MakeInt32(argbufpos - (RTConfig_NumberOfVarargsArguments - 1))));
+					MakeStore(builder, targ, builder->CreateGEP(extArgArray->getType(), extArgArray, MakeInt32(argbufpos - (RTConfig_NumberOfVarargsArguments - 1))));
 				}
 				argbufpos++;
 			}
@@ -84,7 +85,7 @@ namespace Nom
 				}
 				else
 				{
-					MakeStore(builder, arg, builder->CreateGEP(extArgArray, MakeInt32(argbufpos - (RTConfig_NumberOfVarargsArguments - 1))));
+					MakeStore(builder, arg, builder->CreateGEP(extArgArray->getType(), extArgArray, MakeInt32(argbufpos - (RTConfig_NumberOfVarargsArguments - 1))));
 				}
 				argbufpos++;
 			}
@@ -92,7 +93,7 @@ namespace Nom
 			auto dispatcherCallInst = builder->CreateCall(GetIMTFunctionType(), builder->CreateExtractValue(dispatcherPair, { 0 }), llvm::ArrayRef<Value*>(argbuf, 2 + RTConfig_NumberOfVarargsArguments), methodName + "()");
 			dispatcherCallInst->setCallingConv(NOMCC);
 			env->ClearArguments();
-			RegisterValue(env, NomValue(EnsurePackedUnpacked(builder, dispatcherCallInst, REFTYPE), &NomDynamicType::Instance(), true));
+			RegisterValue(env, RTValue::GetValue(builder, dispatcherCallInst, NomType::DynamicRef)->ForNomType(builder, &NomDynamicType::Instance()));
 		}
 
 
