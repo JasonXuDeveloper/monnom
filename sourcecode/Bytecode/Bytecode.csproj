@@ -6,15 +6,15 @@
     <Configurations>Debug;Release;Release-MSVC</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Debug\</OutputPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Release\</OutputPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Release\</OutputPath>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Debug\</OutputPath>-->
+<!--  </PropertyGroup>-->
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Bytecode\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />

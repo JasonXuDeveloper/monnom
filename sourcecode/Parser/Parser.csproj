@@ -7,15 +7,15 @@
     <Configurations>Debug;Release;Release-MSVC</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Debug\</OutputPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Release\</OutputPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Release\</OutputPath>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Debug\</OutputPath>-->
+<!--  </PropertyGroup>-->
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\Parser\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
   <ItemGroup>
     <Antlr4 Include="**/*.g4">
       <Visitor>false</Visitor>

@@ -40,7 +40,7 @@ namespace Nom.Bytecode
 
         //public int OverallTypeParameterCount => ParameterizedParent.Extract(p => p.OverallTypeParameterCount);
 
-        public void WriteByteCode(Stream ws)
+        public virtual void WriteByteCode(Stream ws)
         {
             ws.WriteByte((byte)BytecodeInternalElementType.Constructor);
             ws.WriteValue(ParametersConstant.ConstantID);

@@ -59,18 +59,19 @@ public static class Compiler
             //compile
             Console.WriteLine($"Compiling {defClass.FullQualifiedName}");
             var args =
-                $"-S -std=c++17 -emit-llvm \"{cppFile.FullName}\" -o \"{Path.Combine(output.FullName, cppFile.Name)}.ll\"";
+                $"-std=c++17 -c -emit-llvm \"{cppFile.FullName}\"";
             Console.WriteLine($"clang {args}");
             Process clangProc = new Process();
-            clangProc.StartInfo.UseShellExecute = true;
+            clangProc.StartInfo.UseShellExecute = false;
             clangProc.StartInfo.FileName = "clang";
             clangProc.StartInfo.CreateNoWindow = true;
+            clangProc.StartInfo.WorkingDirectory = output.FullName;
             clangProc.StartInfo.Arguments = args;
             clangProc.Start();
             clangProc.WaitForExit();
             Console.WriteLine(clangProc.ExitCode == 0
-                ? $"Compiled {cppFile.Name}.ll"
-                : $"Failed to compile {cppFile.Name}.ll");
+                ? $"Compiled {cppFile.Name}.bc"
+                : $"Failed to compile {cppFile.Name}.bc");
             Console.WriteLine("==================================");
         }
     }

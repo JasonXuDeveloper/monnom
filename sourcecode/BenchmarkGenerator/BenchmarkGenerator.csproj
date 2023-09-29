@@ -8,17 +8,17 @@
     <Configurations>Debug;Release;Release-MSVC</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Release\</OutputPath>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Release\</OutputPath>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-MSVC|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Release\</OutputPath>-->
+<!--  </PropertyGroup>-->
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Debug\</OutputPath>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">-->
+<!--    <OutputPath>$(NOMBUILDPATH)\BenchmarkGenerator\bin\Debug\</OutputPath>-->
+<!--  </PropertyGroup>-->
 
   <ItemGroup>
     <ProjectReference Include="..\Bytecode\Bytecode.csproj" />

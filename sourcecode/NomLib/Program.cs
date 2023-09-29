@@ -51,6 +51,10 @@ namespace NomLib
                     return new DirectoryInfo(filePath);
                 });
 
+            var archiveArgument = new Argument<bool>(name: "--archive",
+                description: $"Pack library as archive to output directory");
+            archiveArgument.SetDefaultValue(false);
+
             var generateCommand = new Command("generate", "Generate MonNom library");
             libJsonOption.IsRequired = true;
             generateCommand.AddOption(libJsonOption);
@@ -76,10 +80,12 @@ namespace NomLib
             libJsonOption.IsRequired = true;
             packCommand.AddOption(libJsonOption);
             packCommand.AddOption(outputOption);
-            //TODO
-            // packCommand.SetHandler(
-            //     (file, output) => { Packer.PackLibrary(File.ReadAllText(file!.FullName), output!); },
-            //     libJsonOption, outputOption);
+            packCommand.AddArgument(archiveArgument);
+            packCommand.SetHandler(
+                (file, output, archive) => { Packer.PackLibrary(File.ReadAllText(file!.FullName), output!, archive); },
+                libJsonOption, outputOption, archiveArgument);
+            
+            rootCommand.AddCommand(packCommand);
 
             return rootCommand.InvokeAsync(args).Result;
         }
