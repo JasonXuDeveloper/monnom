@@ -1,6 +1,5 @@
-﻿using System;
+﻿using System.IO;
 using Nom.Language;
-using System.IO;
 
 namespace Nom.Bytecode
 {
@@ -10,7 +9,7 @@ namespace Nom.Bytecode
             IConstantRef<StringConstant> cppName, IConstantRef<TypeParametersConstant> typeParameters,
             IConstantRef<ITypeConstant> returnType, IConstantRef<TypeListConstant> argumentTypes, Visibility visibility,
             bool isFinal) : base(name, typeParameters, returnType, argumentTypes, visibility, isFinal,
-            0 /*TODO set this*/, null)
+            0, null)
         {
             CppNameConstant = cppName;
         }
@@ -18,10 +17,6 @@ namespace Nom.Bytecode
 
         public IConstantRef<StringConstant> CppNameConstant { get; }
 
-
-        protected override IOptional<IParameterizedSpec> ParamParent => throw new NotImplementedException();
-
-        public override ITypeParametersSpec TypeParameters => throw new NotImplementedException();
 
         public override void WriteByteCode(Stream ws)
         {

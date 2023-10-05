@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.IO;
 
 namespace Nom.Bytecode
@@ -26,7 +24,6 @@ namespace Nom.Bytecode
         InvokeCheckedInstance = 111,
         CallDispatchBest = 112,
         CallFinal = 113,
-        CallCpp = 114,
         WriteField = 51,
         ReadField = 52,
         Cast = 61,

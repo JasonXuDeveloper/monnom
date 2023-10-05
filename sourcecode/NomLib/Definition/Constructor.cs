@@ -11,5 +11,5 @@ namespace NomLib.Definition;
 
 public struct Constructor
 {
-    public List<Param> Params;
+    public List<TypeParameter> Params;
 }

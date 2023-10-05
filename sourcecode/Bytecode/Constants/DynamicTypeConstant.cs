@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using Nom.Language;
 
 namespace Nom.Bytecode
@@ -12,7 +10,7 @@ namespace Nom.Bytecode
         {
         }
 
-        private static IType dyntype = new Language.DynamicType();
+        private static IType dyntype = new DynamicType();
         public IType Value => dyntype;
 
         public override IEnumerable<IConstant> Dependencies { get { yield break; } }

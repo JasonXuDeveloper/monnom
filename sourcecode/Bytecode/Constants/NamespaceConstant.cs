@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
 
 namespace Nom.Bytecode
@@ -19,7 +18,7 @@ namespace Nom.Bytecode
 
         protected NamespaceConstant(IConstantRef<StringConstant> nameConstant, ulong id) : base(ConstantType.CTInterface, id)
         {
-            this.NameConstant = nameConstant;
+            NameConstant = nameConstant;
         }
 
         public IOptional<IConstantRef<INamespaceConstant>> ParentConstant
@@ -51,10 +50,10 @@ namespace Nom.Bytecode
         {
             get
             {
-                List<IConstant> ret = new List<IConstant>() { NameConstant.Constant };
-                if (this.ParentConstant.HasElem)
+                List<IConstant> ret = new List<IConstant> { NameConstant.Constant };
+                if (ParentConstant.HasElem)
                 {
-                    ret.Add(this.ParentConstant.Elem.Constant);
+                    ret.Add(ParentConstant.Elem.Constant);
                 }
                 return ret;
             }

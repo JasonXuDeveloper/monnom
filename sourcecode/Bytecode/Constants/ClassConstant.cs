@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Nom.Bytecode
 {
@@ -19,8 +17,8 @@ namespace Nom.Bytecode
 
         public ClassConstant(ulong id,IConstantRef<StringConstant> libNameConstant, IConstantRef<StringConstant> nameConstant) : base(ConstantType.CTClass, id)
         {
-            this.NameConstant = nameConstant;
-            this.LibraryNameConstant = libNameConstant;
+            NameConstant = nameConstant;
+            LibraryNameConstant = libNameConstant;
         }
         public IConstantRef<StringConstant> LibraryNameConstant
         {
@@ -62,10 +60,10 @@ namespace Nom.Bytecode
         {
             get
             {
-                List<IConstant> ret = new List<IConstant>() { LibraryNameConstant.Constant, NameConstant.Constant };
-                if(this.ParentConstant.HasElem)
+                List<IConstant> ret = new List<IConstant> { LibraryNameConstant.Constant, NameConstant.Constant };
+                if(ParentConstant.HasElem)
                 {
-                    ret.Add(this.ParentConstant.Elem.Constant);
+                    ret.Add(ParentConstant.Elem.Constant);
                 }
                 return ret;
             }

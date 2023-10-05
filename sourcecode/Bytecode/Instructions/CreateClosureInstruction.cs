@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Nom.Bytecode
 {
@@ -19,9 +17,9 @@ namespace Nom.Bytecode
 
         protected override void WriteArguments(Stream ws)
         {
-            ws.WriteValue(this.LambdaConstant.ConstantID);
-            ws.WriteValue(this.TypeArgumentsConstant.ConstantID);
-            ws.WriteValue(this.ResultRegister);
+            ws.WriteValue(LambdaConstant.ConstantID);
+            ws.WriteValue(TypeArgumentsConstant.ConstantID);
+            ws.WriteValue(ResultRegister);
         }
         public static CreateClosureInstruction Read(Stream s, IReadConstantSource rcs, IEnumerable<int> argRegs)
         {

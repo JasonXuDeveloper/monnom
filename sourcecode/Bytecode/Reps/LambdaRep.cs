@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using System.Linq;
 using Nom.Language;
-using Nom.TypeChecker;
-using System.IO;
 
 namespace Nom.Bytecode
 {
@@ -54,7 +52,7 @@ namespace Nom.Bytecode
         }
 
 
-        public static LambdaRep Read(Language.IClassSpec container, Stream s, IReadConstantSource rcs)
+        public static LambdaRep Read(IClassSpec container, Stream s, IReadConstantSource rcs)
         {
             byte tag = s.ReadActualByte();
             if (tag != (byte)BytecodeInternalElementType.Lambda)

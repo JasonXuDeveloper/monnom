@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
 using System.Linq;
 using Nom.Language;
@@ -55,7 +54,7 @@ namespace Nom.Bytecode
         }
 
 
-        public static StructRep Read(Language.IClassSpec container, Stream s, IReadConstantSource rcs)
+        public static StructRep Read(IClassSpec container, Stream s, IReadConstantSource rcs)
         {
             byte tag = s.ReadActualByte();
             if (tag != (byte)BytecodeInternalElementType.Lambda)

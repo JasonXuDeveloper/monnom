@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Nom.Language;
 
 namespace Nom.Bytecode
 {
     public interface ITypeConstant : IConstant
     {
-        Language.IType Value { get; }
+        IType Value { get; }
     }
 }

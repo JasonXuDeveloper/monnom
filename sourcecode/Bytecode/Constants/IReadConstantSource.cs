@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Nom.Bytecode
+﻿namespace Nom.Bytecode
 {
     public interface IReadConstantSource
     {

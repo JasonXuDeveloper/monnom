@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.IO;
-using Nom.Language;
 
 namespace Nom.Bytecode
 {
@@ -21,9 +17,9 @@ namespace Nom.Bytecode
 
         protected override void WriteArguments(Stream ws)
         {
-            ws.WriteValue(this.StructConstant.ConstantID);
-            ws.WriteValue(this.TypeArgumentsConstant.ConstantID);
-            ws.WriteValue(this.ResultRegister);
+            ws.WriteValue(StructConstant.ConstantID);
+            ws.WriteValue(TypeArgumentsConstant.ConstantID);
+            ws.WriteValue(ResultRegister);
         }
 
         public static ConstructStructInstruction Read(Stream s, IReadConstantSource rcs, IEnumerable<int> argRegs)

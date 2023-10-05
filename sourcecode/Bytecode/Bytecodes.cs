@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Nom.Bytecode
+﻿namespace Nom.Bytecode
 {
     public enum BytecodeTopElementType : byte
     {
@@ -41,5 +37,6 @@ namespace Nom.Bytecode
         Lambda = 205,
         Struct = 206,
         CppMethod = 207,
-    };
+        CppStaticMethod = 208,
+    }
 }

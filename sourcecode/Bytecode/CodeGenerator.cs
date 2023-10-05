@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Linq;
-using Nom.Parser;
-using Nom.TypeChecker;
-using Nom.Project;
+using Nom.Language;
 using Nom.Language.SpecExtensions;
+using Nom.Project;
+using Nom.TypeChecker;
 
 namespace Nom.Bytecode
 {
     public class CodeGenerator
     {
-        private readonly NamespaceRep GlobalNamespace = new NamespaceRep("", Optional<Language.INamespaceSpec>.Empty);
-        public AssemblyUnit GenerateBytecode(Nom.TypeChecker.Program program, NomProject project)
+        private readonly NamespaceRep GlobalNamespace = new NamespaceRep("", Optional<INamespaceSpec>.Empty);
+        public AssemblyUnit GenerateBytecode(Program program, NomProject project)
         {
             AssemblyUnit au = new AssemblyUnit(project);
             //foreach(TDClassDef tdcd in program.Classes)
@@ -35,52 +34,52 @@ namespace Nom.Bytecode
             return au;
         }
 
-        public void ConvertNamespace(Nom.TypeChecker.INamespace ns, NamespaceRep nsr, AssemblyUnit au /*BytecodeUnit bcu*/)
+        public void ConvertNamespace(INamespace ns, NamespaceRep nsr, AssemblyUnit au /*BytecodeUnit bcu*/)
         {
-            foreach (TypeChecker.INamespace cns in ns.Namespaces)
+            foreach (INamespace cns in ns.Namespaces)
             {
                 NamespaceRep cnsr = new NamespaceRep(cns.Name, nsr.InjectOptional());
                 nsr.AddNamespace(cnsr);
                 ConvertNamespace(cns, cnsr, au /*bcu*/);
             }
-            foreach (TypeChecker.IInterface cifc in ns.Interfaces)
+            foreach (IInterface cifc in ns.Interfaces)
             {
                 ConvertInterface(cifc, au /*bcu*/);
             }
-            foreach (TypeChecker.IClass ccls in ns.Classes)
+            foreach (IClass ccls in ns.Classes)
             {
                 ConvertClass(ccls, au /*bcu*/);
             }
         }
 
-        public InterfaceRep ConvertInterface(Nom.TypeChecker.IInterface ifc, AssemblyUnit au /*BytecodeUnit bcu*/)
+        public InterfaceRep ConvertInterface(IInterface ifc, AssemblyUnit au /*BytecodeUnit bcu*/)
         {
-            BytecodeUnit bcu = new BytecodeUnit(ifc.FullQualifiedName, au);
+            TypeCheckerBytecodeUnit bcu = new TypeCheckerBytecodeUnit(ifc.FullQualifiedName, au);
             InterfaceRep ir = new InterfaceRep(bcu.GetStringConstant(ifc.FullQualifiedName), bcu.GetTypeParametersConstant(ifc.AllTypeParameters), bcu.GetSuperInterfacesConstant(ifc.Implements), ifc.IsShape, ifc.Visibility, bcu.AssemblyUnit);
-            foreach (Language.IMethodSpec method in ifc.Methods)
+            foreach (IMethodSpec method in ifc.Methods)
             {
                 MethodDeclRep mdr = new MethodDeclRep(bcu.GetStringConstant(method.Name), bcu.GetTypeParametersConstant(method.TypeParameters), bcu.GetTypeConstant(method.ReturnType), bcu.GetTypeListConstant(method.Parameters.Entries.Select(ps => ps.Type)), method.Visibility, method.IsFinal);
                 ir.AddMethodDecl(mdr);
             }
             bcu.AddInterface(ir);
             au.AddUnit(bcu);
-            foreach (TypeChecker.IInterface cifc in ifc.Interfaces)
+            foreach (IInterface cifc in ifc.Interfaces)
             {
                 ConvertInterface(cifc, au /*bcu*/);
             }
             return ir;
         }
 
-        public ClassRep ConvertClass(Nom.TypeChecker.IClass cls, AssemblyUnit au /*BytecodeUnit bcu*/)
+        public ClassRep ConvertClass(IClass cls, AssemblyUnit au /*BytecodeUnit bcu*/)
         {
-            BytecodeUnit bcu = new BytecodeUnit(cls.FullQualifiedName, au);
-            ClassRep cr = new ClassRep(bcu.GetStringConstant(cls.FullQualifiedName), bcu.GetTypeParametersConstant(cls.AllTypeParameters/*.SelectMany(tp=>tp.LowerBound.Singleton().Snoc(tp.UpperBound))*/), bcu.GetSuperClassConstant(cls.SuperClass.Elem), bcu.GetSuperInterfacesConstant(cls.GetParamRef<Language.IClassSpec, Language.IType>().AllImplementedInterfaces().Distinct(Language.ParamRefEqualityComparer<Language.IInterfaceSpec, Language.IType>.Instance)), cls.IsFinal, false, cls.IsShape, cls.Visibility, bcu.AssemblyUnit);
-            foreach (TypeChecker.IFieldDecl fd in cls.Fields)
+            TypeCheckerBytecodeUnit bcu = new TypeCheckerBytecodeUnit(cls.FullQualifiedName, au);
+            ClassRep cr = new ClassRep(bcu.GetStringConstant(cls.FullQualifiedName), bcu.GetTypeParametersConstant(cls.AllTypeParameters/*.SelectMany(tp=>tp.LowerBound.Singleton().Snoc(tp.UpperBound))*/), bcu.GetSuperClassConstant(cls.SuperClass.Elem), bcu.GetSuperInterfacesConstant(cls.GetParamRef<IClassSpec, IType>().AllImplementedInterfaces().Distinct(ParamRefEqualityComparer<IInterfaceSpec, IType>.Instance)), cls.IsFinal, false, cls.IsShape, cls.Visibility, bcu.AssemblyUnit);
+            foreach (IFieldDecl fd in cls.Fields)
             {
                 FieldRep fr = new FieldRep(cr, bcu.GetStringConstant(fd.Name), bcu.GetTypeConstant(fd.Type), fd.IsReadonly, fd.IsVolatile, fd.Visibility);
                 cr.AddField(fr);
             }
-            foreach (TypeChecker.IStaticMethodDef smd in cls.StaticMethods)
+            foreach (IStaticMethodDef smd in cls.StaticMethods)
             {
                 List<IInstruction> instructions = new List<IInstruction>();
                 foreach (TypeChecker.IInstruction instruction in smd.Instructions)
@@ -91,7 +90,7 @@ namespace Nom.Bytecode
                 StaticMethodDefRep smdr = new StaticMethodDefRep(bcu.GetStringConstant(smd.Name), bcu.GetTypeConstant(smd.ReturnType), bcu.GetTypeParametersConstant(smd.TypeParameters), bcu.GetTypeListConstant(smd.Parameters.Entries.Select(ps => ps.Type)), smd.Visibility, instructions, smd.RegisterCount);
                 cr.AddStaticMethod(smdr);
             }
-            foreach (TypeChecker.IConstructorDef cd in cls.Constructors)
+            foreach (IConstructorDef cd in cls.Constructors)
             {
                 List<IInstruction> preInstructions = new List<IInstruction>();
                 foreach (TypeChecker.IInstruction instruction in cd.PreInstructions)
@@ -106,7 +105,7 @@ namespace Nom.Bytecode
                 ConstructorDefRep cdr = new ConstructorDefRep(bcu.GetTypeListConstant(cd.Parameters.Entries.Select(ps => ps.Type)), cd.Visibility, preInstructions, cd.SuperConstructorArgs.Select(sca => sca.Index), postInstructions, cd.RegisterCount);
                 cr.AddConstructor(cdr);
             }
-            foreach (TypeChecker.IMethodDef method in cls.Methods)
+            foreach (IMethodDef method in cls.Methods)
             {
                 List<IInstruction> instructions = new List<IInstruction>();
                 foreach (TypeChecker.IInstruction instruction in method.Instructions)
@@ -116,7 +115,7 @@ namespace Nom.Bytecode
                 MethodDefRep mdr = new MethodDefRep(bcu.GetStringConstant(method.Name), bcu.GetTypeParametersConstant(method.TypeParameters), bcu.GetTypeConstant(method.ReturnType), bcu.GetTypeListConstant(method.Parameters.Entries.Select(ps => ps.Type)), method.Visibility, method.IsFinal, method.RegisterCount, instructions);
                 cr.AddMethodDef(mdr);
             }
-            foreach (TypeChecker.ITDLambda lambda in cls.Lambdas)
+            foreach (ITDLambda lambda in cls.Lambdas)
             {
                 List<IInstruction> instructions = new List<IInstruction>();
                 foreach (TypeChecker.IInstruction instruction in lambda.Instructions)
@@ -126,7 +125,7 @@ namespace Nom.Bytecode
                 LambdaRep lr = new LambdaRep(bcu.GetLambdaConstant(lambda), bcu.GetTypeParametersConstant(lambda.ClosureTypeParameters), bcu.GetTypeListConstant(lambda.Fields.Select(f=>f.Type)), lambda.Fields.Select(f => new LambdaFieldRep(bcu.GetStringConstant(f.Name), bcu.GetTypeConstant(f.Type))), bcu.GetTypeParametersConstant(lambda.TypeParameters), bcu.GetTypeConstant(lambda.ReturnType), bcu.GetTypeListConstant(lambda.Parameters.Entries.Select(ps => ps.Type)), lambda.RegisterCount, instructions);
                 cr.AddLambda(lr);
             }
-            foreach (TypeChecker.ITDStruct structdef in cls.Structs)
+            foreach (ITDStruct structdef in cls.Structs)
             {
                 StructRep sr = new StructRep(bcu.GetStructConstant(structdef), bcu.GetTypeParametersConstant(structdef.ClosureTypeParameters), structdef.Fields.Select(f => new StructFieldRep(bcu.GetStringConstant(f.Name), bcu.GetTypeConstant(f.Type), f.IsReadOnly, f.InitializerExpr.Register.Index, f.InitializerExpr.Select(instr=>instr.Visit(InstructionConverter.Instance, bcu)))), bcu.GetTypeListConstant(structdef.InitializerArgs.Select(vr=>vr.Type)), structdef.InitializerRegisterCount, structdef.EndArgRegisterCount);
                 foreach (var smethod in structdef.Methods)
@@ -143,87 +142,87 @@ namespace Nom.Bytecode
             }
             bcu.AddClass(cr);
             au.AddUnit(bcu);
-            foreach (TypeChecker.IInterface cifc in cls.Interfaces)
+            foreach (IInterface cifc in cls.Interfaces)
             {
                 ConvertInterface(cifc, au /*bcu*/);
             }
-            foreach (TypeChecker.IClass ccls in cls.Classes)
+            foreach (IClass ccls in cls.Classes)
             {
                 ConvertClass(ccls, au /*bcu*/);
             }
             return cr;
         }
 
-        private class InstructionConverter : IInstructionVisitor<BytecodeUnit, IInstruction>
+        private class InstructionConverter : IInstructionVisitor<TypeCheckerBytecodeUnit, IInstruction>
         {
             private InstructionConverter() { }
             public static InstructionConverter Instance = new InstructionConverter();
-            public Func<TypeChecker.DebugInstruction, BytecodeUnit, IInstruction> VisitDebugInstruction => (instr, bcu) => new DebugInstruction(bcu.GetStringConstant(instr.Message));
+            public Func<TypeChecker.DebugInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitDebugInstruction => (instr, bcu) => new DebugInstruction(bcu.GetStringConstant(instr.Message));
 
-            public Func<TypeChecker.ReturnVoidInstruction, BytecodeUnit, IInstruction> VisitReturnVoidInstruction => (instr, bcu) => new ReturnVoidInstruction();
+            public Func<TypeChecker.ReturnVoidInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReturnVoidInstruction => (instr, bcu) => new ReturnVoidInstruction();
 
-            public Func<TypeChecker.CastInstruction, BytecodeUnit, IInstruction> VisitCastInstruction => (instr, bcu) => new CastInstruction(instr.Register.Index, instr.Argument.Index, bcu.GetTypeConstant(instr.Type));
+            public Func<TypeChecker.CastInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCastInstruction => (instr, bcu) => new CastInstruction(instr.Register.Index, instr.Argument.Index, bcu.GetTypeConstant(instr.Type));
 
-            public Func<ReadInstanceFieldInstruction, BytecodeUnit, IInstruction> VisitReadInstanceFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.Field.Name), bcu.GetClassConstant(instr.Field.Container));
+            public Func<ReadInstanceFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReadInstanceFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.Field.Name), bcu.GetClassConstant(instr.Field.Container));
 
-            public Func<CallStaticMethodCheckedInstruction, BytecodeUnit, IInstruction> VisitCallStaticMethodCheckedInstruction => (instr, bcu) =>
+            public Func<CallStaticMethodCheckedInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCallStaticMethodCheckedInstruction => (instr, bcu) =>
             new CallCheckedStaticMethodInstruction(bcu.GetStaticMethodConstant(instr.Method), bcu.GetTypeListConstant(instr.ActualParameters), instr.Arguments.Select(reg => reg.Index), instr.Register.Index);
 
-            public Func<BoolFalseInstruction, BytecodeUnit, IInstruction> VisitBoolFalseInstruction => (instr, bcu) => new LoadBoolConstantInstruction(false, instr.Register.Index);
+            public Func<BoolFalseInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitBoolFalseInstruction => (instr, bcu) => new LoadBoolConstantInstruction(false, instr.Register.Index);
 
-            public Func<CallConstructorCheckedInstruction, BytecodeUnit, IInstruction> VisitCallConstructorCheckedInstruction => (instr, bcu) => 
+            public Func<CallConstructorCheckedInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCallConstructorCheckedInstruction => (instr, bcu) => 
             new CallCheckedConstructorInstruction(bcu.GetSuperClassConstant(instr.Constructor.Element.Container.MakeClassRef(instr.Constructor.Substitutions.Transform(t=>t.AsType))), bcu.GetTypeListConstant(instr.ActualParameters), instr.Arguments.Select(reg => reg.Index), instr.Register.Index);
 
-            public Func<CallInstanceMethodCheckedInstruction, BytecodeUnit, IInstruction> VisitCallInstanceMethodCheckedInstruction => (instr, bcu) => new CallCheckedInstanceMethodInstruction(bcu.GetMethodConstant(instr.Method), bcu.GetTypeListConstant(instr.ActualParameters), instr.Arguments.Select(reg => reg.Index), instr.Register.Index, instr.Receiver.Index);
+            public Func<CallInstanceMethodCheckedInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCallInstanceMethodCheckedInstruction => (instr, bcu) => new CallCheckedInstanceMethodInstruction(bcu.GetMethodConstant(instr.Method), bcu.GetTypeListConstant(instr.ActualParameters), instr.Arguments.Select(reg => reg.Index), instr.Register.Index, instr.Receiver.Index);
 
-            public Func<WriteInstanceFieldInstruction, BytecodeUnit, IInstruction> VisitWriteInstanceFieldInstruction => (instr, bcu) => new WriteFieldInstruction(instr.Value.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.Field.Name), bcu.GetClassConstant(instr.Field.Container));
+            public Func<WriteInstanceFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitWriteInstanceFieldInstruction => (instr, bcu) => new WriteFieldInstruction(instr.Value.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.Field.Name), bcu.GetClassConstant(instr.Field.Container));
 
-            public Func<ReadStaticFieldInstruction, BytecodeUnit, IInstruction> VisitReadStaticFieldInstruction => (instr, bcu) => throw new NotImplementedException();
+            public Func<ReadStaticFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReadStaticFieldInstruction => (instr, bcu) => throw new NotImplementedException();
 
-            public Func<WriteExpandoFieldInstruction, BytecodeUnit, IInstruction> VisitWriteExpandoFieldInstruction => (instr, bcu) => new WriteFieldInstruction(instr.Value.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.FieldName), bcu.GetEmptyClassConstant());
+            public Func<WriteExpandoFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitWriteExpandoFieldInstruction => (instr, bcu) => new WriteFieldInstruction(instr.Value.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.FieldName), bcu.GetEmptyClassConstant());
 
-            public Func<BoolTrueInstruction, BytecodeUnit, IInstruction> VisitBoolTrueInstruction => (instr, bcu) => new LoadBoolConstantInstruction(true, instr.Register.Index);
+            public Func<BoolTrueInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitBoolTrueInstruction => (instr, bcu) => new LoadBoolConstantInstruction(true, instr.Register.Index);
 
-            public Func<ReadExpandoFieldInstruction, BytecodeUnit, IInstruction> VisitReadExpandoFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.FieldName), bcu.GetEmptyClassConstant());
+            public Func<ReadExpandoFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReadExpandoFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, instr.Receiver.Index, bcu.GetStringConstant(instr.FieldName), bcu.GetEmptyClassConstant());
 
-            public Func<WriteStaticFieldInstruction, BytecodeUnit, IInstruction> VisitWriteStaticFieldInstruction => (instr, bcu) => throw new NotImplementedException();
+            public Func<WriteStaticFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitWriteStaticFieldInstruction => (instr, bcu) => throw new NotImplementedException();
 
-            public Func<TypeChecker.ReturnInstruction, BytecodeUnit, IInstruction> VisitReturnInstruction => (instr, bcu) => new ReturnInstruction(instr.Register.Index);
+            public Func<TypeChecker.ReturnInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReturnInstruction => (instr, bcu) => new ReturnInstruction(instr.Register.Index);
 
-            public Func<TypeChecker.LoadIntConstantInstruction, BytecodeUnit, IInstruction> VisitLoadIntConstantInstruction => (instr, bcu) => new LoadIntConstantInstruction(instr.Value, instr.Register.Index);
+            public Func<TypeChecker.LoadIntConstantInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitLoadIntConstantInstruction => (instr, bcu) => new LoadIntConstantInstruction(instr.Value, instr.Register.Index);
 
-            public Func<TypeChecker.LoadStringConstantInstruction, BytecodeUnit, IInstruction> VisitLoadStringConstantInstruction => (instr, bcu) => new LoadStringConstantInstruction(bcu.GetStringConstant(instr.Value), instr.Register.Index);
+            public Func<TypeChecker.LoadStringConstantInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitLoadStringConstantInstruction => (instr, bcu) => new LoadStringConstantInstruction(bcu.GetStringConstant(instr.Value), instr.Register.Index);
 
-            public Func<TypeChecker.BinOpInstruction, BytecodeUnit, IInstruction> VisitBinOpInstruction => (instr, bcu) => new BinOpInstruction(instr.Operator, instr.Left.Index, instr.Right.Index, instr.Register.Index);
+            public Func<TypeChecker.BinOpInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitBinOpInstruction => (instr, bcu) => new BinOpInstruction(instr.Operator, instr.Left.Index, instr.Right.Index, instr.Register.Index);
 
-            public Func<TypeChecker.CondBranchInstruction, BytecodeUnit, IInstruction> VisitCondBranchInstruction => (instr, bcu) => new CondBranchInstruction(instr.Condition.Index, instr.ThenTarget.Index, instr.ElseTarget.Index, instr.GetThenIncomings().Select(p => (p.Item1.Index, p.Item2.Index)), instr.GetElseIncomings().Select(p => (p.Item1.Index, p.Item2.Index)));
-            public Func<TypeChecker.BranchInstruction, BytecodeUnit, IInstruction> VisitBranchInstruction => (instr, bcu) => new BranchInstruction(instr.Target.Index, instr.GetIncomings().Select(p => (p.Item1.Index, p.Item2.Index)));
+            public Func<TypeChecker.CondBranchInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCondBranchInstruction => (instr, bcu) => new CondBranchInstruction(instr.Condition.Index, instr.ThenTarget.Index, instr.ElseTarget.Index, instr.GetThenIncomings().Select(p => (p.Item1.Index, p.Item2.Index)), instr.GetElseIncomings().Select(p => (p.Item1.Index, p.Item2.Index)));
+            public Func<TypeChecker.BranchInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitBranchInstruction => (instr, bcu) => new BranchInstruction(instr.Target.Index, instr.GetIncomings().Select(p => (p.Item1.Index, p.Item2.Index)));
 
-            public Func<TypeChecker.PhiNode, BytecodeUnit, IInstruction> VisitPhiNode => (instr, bcu) => new PhiNode(instr.GetRegisters().Select(p => (p.Item1.Index, bcu.GetTypeConstant(p.Item2))), instr.IncomingCount);
+            public Func<TypeChecker.PhiNode, TypeCheckerBytecodeUnit, IInstruction> VisitPhiNode => (instr, bcu) => new PhiNode(instr.GetRegisters().Select(p => (p.Item1.Index, bcu.GetTypeConstant(p.Item2))), instr.IncomingCount);
 
-            public Func<TypeChecker.CallExpandoMethodInstruction, BytecodeUnit, IInstruction> VisitCallExpandoMethodInstruction => (instr, bcu) => new CallExpandoMethodInstruction(instr.Receiver.Index, bcu.GetStringConstant(instr.MethodName), bcu.GetTypeListConstant(instr.TypeArguments), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
+            public Func<TypeChecker.CallExpandoMethodInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCallExpandoMethodInstruction => (instr, bcu) => new CallExpandoMethodInstruction(instr.Receiver.Index, bcu.GetStringConstant(instr.MethodName), bcu.GetTypeListConstant(instr.TypeArguments), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
 
-            public Func<TypeChecker.CreateClosureInstruction, BytecodeUnit, IInstruction> VisitCreateClosureInstruction => (instr, bcu) => new CreateClosureInstruction(bcu.GetLambdaConstant(instr.Lambda), bcu.GetTypeListConstant(instr.TypeArgs), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
+            public Func<TypeChecker.CreateClosureInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitCreateClosureInstruction => (instr, bcu) => new CreateClosureInstruction(bcu.GetLambdaConstant(instr.Lambda), bcu.GetTypeListConstant(instr.TypeArgs), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
 
-            public Func<TypeChecker.ReadLambdaFieldInstruction, BytecodeUnit, IInstruction> VisitReadLambdaFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, 0, bcu.GetStringConstant(instr.Field.Name), bcu.GetLambdaConstant(instr.Field.Lambda));
+            public Func<ReadLambdaFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReadLambdaFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, 0, bcu.GetStringConstant(instr.Field.Name), bcu.GetLambdaConstant(instr.Field.Lambda));
 
-            public Func<TypeChecker.ReadStructFieldInstruction, BytecodeUnit, IInstruction> VisitReadStructFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, 0, bcu.GetStringConstant(instr.Field.Name), bcu.GetStructConstant(instr.Field.Struct));
+            public Func<ReadStructFieldInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitReadStructFieldInstruction => (instr, bcu) => new ReadFieldInstruction(instr.Register.Index, 0, bcu.GetStringConstant(instr.Field.Name), bcu.GetStructConstant(instr.Field.Struct));
 
-            public Func<TypeChecker.ConstructStructInstruction, BytecodeUnit, IInstruction> VisitConstructStructInstruction => (instr, bcu) => new ConstructStructInstruction(bcu.GetStructConstant(instr.Struct), bcu.GetTypeListConstant(instr.TypeArguments), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
+            public Func<TypeChecker.ConstructStructInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitConstructStructInstruction => (instr, bcu) => new ConstructStructInstruction(bcu.GetStructConstant(instr.Struct), bcu.GetTypeListConstant(instr.TypeArguments), instr.Arguments.Select(arg => arg.Index), instr.Register.Index);
 
-            public Func<TypeChecker.ErrorInstruction, BytecodeUnit, IInstruction> VisitErrorInstruction => (instr, bcu) => new ErrorInstruction(instr.Register.Index);
+            public Func<TypeChecker.ErrorInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitErrorInstruction => (instr, bcu) => new ErrorInstruction(instr.Register.Index);
 
-            public Func<TypeChecker.RuntimeCmdInstruction, BytecodeUnit, IInstruction> VisitRuntimeCmdInstruction => (instr, bcu) => new RuntimeCmdInstruction(bcu.GetStringConstant(instr.Cmd));
+            public Func<TypeChecker.RuntimeCmdInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitRuntimeCmdInstruction => (instr, bcu) => new RuntimeCmdInstruction(bcu.GetStringConstant(instr.Cmd));
 
-            public Func<TypeChecker.LoadFloatConstantInstruction, BytecodeUnit, IInstruction> VisitLoadFloatConstantInstruction => (instr, bcu) => new LoadFloatConstantInstruction(instr.Value, instr.Register.Index);
+            public Func<TypeChecker.LoadFloatConstantInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitLoadFloatConstantInstruction => (instr, bcu) => new LoadFloatConstantInstruction(instr.Value, instr.Register.Index);
 
-            public Func<NullInstruction, BytecodeUnit, IInstruction> VisitNullInstruction => (instr, bcu) => new LoadNullConstantInstruction(instr.Register.Index);
+            public Func<NullInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitNullInstruction => (instr, bcu) => new LoadNullConstantInstruction(instr.Register.Index);
 
-            public Func<TypeChecker.UnaryOpInstruction, BytecodeUnit, IInstruction> VisitUnaryOpInstruction => (instr, bcu) => new UnaryOpInstruction(instr.Operator, instr.Arg.Index, instr.Register.Index);
+            public Func<TypeChecker.UnaryOpInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitUnaryOpInstruction => (instr, bcu) => new UnaryOpInstruction(instr.Operator, instr.Arg.Index, instr.Register.Index);
 
-            public Func<TypeChecker.EnsureCheckedMethodInstruction, BytecodeUnit, IInstruction> VisitEnsureCheckedMethodInstruction => (instr, bcu) => new EnsureCheckedMethodInstruction(bcu.GetStringConstant(instr.MethodName), instr.Receiver.Index);
+            public Func<TypeChecker.EnsureCheckedMethodInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitEnsureCheckedMethodInstruction => (instr, bcu) => new EnsureCheckedMethodInstruction(bcu.GetStringConstant(instr.MethodName), instr.Receiver.Index);
 
-            public Func<TypeChecker.EnsureDynamicMethodInstruction, BytecodeUnit, IInstruction> VisitEnsureDynamicMethodInstruction => (instr, bcu) => new EnsureDynamicMethodInstruction(bcu.GetStringConstant(instr.MethodName), instr.Receiver.Index);
+            public Func<TypeChecker.EnsureDynamicMethodInstruction, TypeCheckerBytecodeUnit, IInstruction> VisitEnsureDynamicMethodInstruction => (instr, bcu) => new EnsureDynamicMethodInstruction(bcu.GetStringConstant(instr.MethodName), instr.Receiver.Index);
         }
 
         //private class NamespaceConstantVisitor : ITDNamespaceVisitor<object, INamespaceConstant>

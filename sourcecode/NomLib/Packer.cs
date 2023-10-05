@@ -8,15 +8,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 using Nom;
 using Nom.Bytecode;
-using Nom.Language;
 using Nom.Project;
-using Nom.TypeChecker;
-using Nom.TypeChecker.StdLib;
 using NomLib.Definition;
-using Object = Nom.TypeChecker.StdLib.Object;
+using Type = NomLib.Definition.Type;
 
 namespace NomLib;
 
@@ -54,7 +52,18 @@ public class Packer
                 continue;
             }
 
-            PackClass(defClass, unit);
+            PackClass(libDef, defClass, unit);
+        }
+
+        foreach (var file in input.GetFiles("*.bc"))
+        {
+            unit.AddNativeFile(new LlvmFile(file));
+        }
+
+        outputPath = new DirectoryInfo(Path.Combine(outputPath.FullName, libDef.LibraryName, "Nom"));
+        if (!outputPath.Exists)
+        {
+            outputPath.Create();
         }
 
         if (!archive)
@@ -69,28 +78,94 @@ public class Packer
         Console.WriteLine("Done!");
     }
 
-    private static void PackClass(Class nomClass, AssemblyUnit unit)
+    private static IConstantRef<TypeListConstant> GetTypeList(IEnumerable<IConstantRef<ITypeConstant>> typeArgs,
+        BytecodeUnit bytecodeUnit)
+    {
+        return bytecodeUnit.GetTypeListConstant(typeArgs);
+    }
+
+    private static IConstantRef<TypeParametersConstant> GetTypeParametersConstant(IEnumerable<TypeParameter> parameters,
+        BytecodeUnit bytecodeUnit)
+        => bytecodeUnit.GetTypeParametersConstant(parameters
+            .Select(parameter => GetTypeArgument(parameter.Type, bytecodeUnit))
+            .Select(upperBound => new TypeParameterEntry(bytecodeUnit.GetBottomTypeConstant(), upperBound)));
+
+    private static IConstantRef<ITypeConstant> GetTypeArgument(Type typeArgument, BytecodeUnit bytecodeUnit)
+    {
+        switch (typeArgument.Kind)
+        {
+            case "Var":
+                IConstantRef<TypeVariableConstant> typeVariableConstant =
+                    bytecodeUnit.GetTypeVariableConstant(typeArgument.Index);
+                return typeVariableConstant;
+            case "Top":
+                return BytecodeUnit.GetEmptyTypeConstant();
+            case "Bottom":
+                return bytecodeUnit.GetBottomTypeConstant();
+            case "Dynamic":
+                return bytecodeUnit.GetDynamicTypeConstant();
+            case "Class":
+                var c = bytecodeUnit.GetClassConstant(typeArgument.FullQualifiedName, typeArgument.LibraryName);
+                var typeArgs = typeArgument.Arguments?.Select(arg => GetTypeArgument(arg, bytecodeUnit));
+                var typeList = GetTypeList(typeArgs, bytecodeUnit);
+                return bytecodeUnit.GetNamedTypeConstant(typeArgument.ToString(), c, typeList);
+            case "Interface":
+                var i = bytecodeUnit.GetInterfaceConstant(typeArgument.FullQualifiedName, typeArgument.LibraryName);
+                var typeArgs2 = typeArgument.Arguments?.Select(arg => GetTypeArgument(arg, bytecodeUnit));
+                var typeList2 = GetTypeList(typeArgs2, bytecodeUnit);
+                return bytecodeUnit.GetNamedTypeConstant(typeArgument.ToString(), i, typeList2);
+            case "Maybe":
+                return bytecodeUnit.GetMaybeTypeConstant(GetTypeArgument(typeArgument.Arguments.First(), bytecodeUnit));
+            default:
+                throw new InvalidDataException($"Invalid Kind {typeArgument.Kind}");
+        }
+    }
+
+    private static void PackClass(NomLibDef def, Class nomClass, AssemblyUnit unit)
     {
         BytecodeUnit bytecodeUnit = new BytecodeUnit(nomClass.FullQualifiedName, unit);
-        List<TDTypeArgDecl> typeArgs = new List<TDTypeArgDecl>();
-        for (int i = 0; i < nomClass.TypeParameters.Count; i++)
+
+        //create corresponded constants
+        Super superClass = nomClass.FullQualifiedSuperClass;
+
+        //super class
+        var superClassClassConstant = string.IsNullOrEmpty(superClass.FullQualifiedName)
+            ? bytecodeUnit.GetEmptyClassConstant()
+            : bytecodeUnit.GetClassConstant(superClass.FullQualifiedName, superClass.LibraryName);
+        var superClassTypeListConstant =
+            GetTypeList(superClass.TypeArguments?.Select(arg => GetTypeArgument(arg, bytecodeUnit)), bytecodeUnit);
+        var superClassConstant = bytecodeUnit.GetSuperClassConstant(
+            !string.IsNullOrEmpty(superClass.FullQualifiedName) ? superClass.ToString() : "default",
+            superClassClassConstant,
+            superClassTypeListConstant);
+
+        //super interfaces
+        List<(IConstantRef<IInterfaceConstant> iCon, IConstantRef<TypeListConstant> tCon)> superInterfaces = new();
+        foreach (var superInterface in nomClass.FullQualifiedSuperInterfaces)
         {
-            typeArgs.Add(new TDTypeArgDecl(nomClass.TypeParameters[i].Name, i));
+            var superInterfaceClassConstant =
+                bytecodeUnit.GetInterfaceConstant(superInterface.FullQualifiedName, superInterface.LibraryName);
+            var superInterfaceTypeListConstant =
+                GetTypeList(superInterface.TypeArguments.Select(arg => GetTypeArgument(arg, bytecodeUnit)),
+                    bytecodeUnit);
+            superInterfaces.Add((superInterfaceClassConstant, superInterfaceTypeListConstant));
         }
 
+        var superInterfacesConstant = bytecodeUnit.GetSuperInterfacesConstant(superInterfaces);
+
+        //typeparameters
+        var typeParameters = GetTypeParametersConstant(nomClass.TypeParameters, bytecodeUnit);
+
         ClassRep classRep = new ClassRep(bytecodeUnit.GetStringConstant(nomClass.FullQualifiedName),
-            bytecodeUnit.GetTypeParametersConstant(new TypeParametersSpec(typeArgs)),
-            bytecodeUnit.GetSuperClassConstant(cls.SuperClass.Elem), //TODO how to get this constant?
-            bytecodeUnit.GetSuperInterfacesConstant(cls.GetParamRef<Language.IClassSpec, Language.IType>()
-                .AllImplementedInterfaces()
-                .Distinct(Language.ParamRefEqualityComparer<Language.IInterfaceSpec, Language.IType>
-                    .Instance)), //TODO how to get this constant?
+            typeParameters,
+            superClassConstant,
+            superInterfacesConstant,
             true, false, nomClass.IsShape, Enum.Parse<Visibility>(nomClass.Visibility), bytecodeUnit.AssemblyUnit);
-        
+
         foreach (var field in nomClass.Fields)
         {
             FieldRep fieldRep = new FieldRep(classRep, bytecodeUnit.GetStringConstant(field.Name),
-                bytecodeUnit.GetTypeConstant(field.Type), //TODO how to get this constant?
+                GetTypeArgument(field.Type, bytecodeUnit),
                 field.IsReadOnly, field.IsVolatile,
                 Enum.Parse<Visibility>(field.Visibility));
             classRep.AddField(fieldRep);
@@ -100,47 +175,51 @@ public class Packer
         {
             var ctorName =
                 $"{nomClass.FullQualifiedName.ToLowerInvariant().Replace(".", "_")}_ctor_{nomClass.Constructors.IndexOf(constructor)}";
-
-            CppConstructorDefRep constructorRep = new CppConstructorDefRep(
+            CppStaticMethodDefRep cppStaticMethodDefRep = new CppStaticMethodDefRep(
                 bytecodeUnit.GetStringConstant(ctorName),
-                bytecodeUnit.GetTypeListConstant(
-                    cd.Parameters.Entries.Select(ps => ps.Type)), //TODO how to get this constant?
-                Visibility.Public,
-                cd.SuperConstructorArgs.Select(sca => sca.Index), //TODO how to get this?
-                cd.RegisterCount //TODO how to get this?
-            );
-            classRep.AddConstructor(constructorRep);
+                bytecodeUnit.GetStringConstant(ctorName),
+                GetTypeArgument(new Type()
+                {
+                    Kind = "Class",
+                    FullQualifiedName = nomClass.FullQualifiedName,
+                    LibraryName = def.LibraryName
+                }, bytecodeUnit),
+                typeParameters,
+                GetTypeList(constructor.Params.Select(param => GetTypeArgument(param.Type, bytecodeUnit)),
+                    bytecodeUnit),
+                Visibility.Public);
+            classRep.AddStaticMethod(cppStaticMethodDefRep);
         }
 
         foreach (var method in nomClass.Methods)
         {
             if (method.IsStatic)
             {
-                //         List<IInstruction> instructions = new List<IInstruction>();
-                //         foreach (TypeChecker.IInstruction instruction in smd.Instructions)
-                //         {
-                //             instructions.Add(instruction.Visit(InstructionConverter.Instance, bcu));
-                //         }
-                //         //TODO: fix type variable and parameter lists
-                //         StaticMethodDefRep smdr = new StaticMethodDefRep(bcu.GetStringConstant(smd.Name), bcu.GetTypeConstant(smd.ReturnType), bcu.GetTypeParametersConstant(smd.TypeParameters), bcu.GetTypeListConstant(smd.Parameters.Entries.Select(ps => ps.Type)), smd.Visibility, instructions, smd.RegisterCount);
-                //         cr.AddStaticMethod(smdr);
+                var cppMethodName = $"{nomClass.FullQualifiedName.ToLowerInvariant().Replace(".", "_")}_{method.Name}";
+                CppStaticMethodDefRep cppStaticMethodDefRep = new CppStaticMethodDefRep(
+                    bytecodeUnit.GetStringConstant(method.Name),
+                    bytecodeUnit.GetStringConstant(cppMethodName),
+                    GetTypeArgument(method.ReturnType, bytecodeUnit),
+                    GetTypeParametersConstant(method.TypeParameters, bytecodeUnit),
+                    GetTypeList(method.Params.Select(param => GetTypeArgument(param.Type, bytecodeUnit)),
+                        bytecodeUnit),
+                    Enum.Parse<Visibility>(method.Visibility));
+                classRep.AddStaticMethod(cppStaticMethodDefRep);
             }
             else
             {
                 var cppMethodName = $"{nomClass.FullQualifiedName.ToLowerInvariant().Replace(".", "_")}_{method.Name}";
                 CppMethodDeclRep cppMethodDeclRep = new CppMethodDeclRep(bytecodeUnit.GetStringConstant(method.Name),
                     bytecodeUnit.GetStringConstant(cppMethodName),
-                    bytecodeUnit.GetTypeParametersConstant(method.TypeParameters), //TODO how to get this constant?
-                    bytecodeUnit.GetTypeConstant(method.ReturnType), //TODO how to get this constant?
-                    bytecodeUnit.GetTypeListConstant(
-                        method.Parameters.Entries.Select(ps => ps.Type)), //TODO how to get this constant?
+                    GetTypeParametersConstant(method.TypeParameters, bytecodeUnit),
+                    GetTypeArgument(method.ReturnType, bytecodeUnit),
+                    GetTypeList(method.Params.Select(param => GetTypeArgument(param.Type, bytecodeUnit)),
+                        bytecodeUnit),
                     Enum.Parse<Visibility>(method.Visibility),
                     method.IsFinal);
                 classRep.AddMethodDef(cppMethodDeclRep);
             }
         }
-        
-        //TODO somehow attach the llvm bitcode of this class
 
         bytecodeUnit.AddClass(classRep);
         unit.AddUnit(bytecodeUnit);

@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Linq;
 using System.IO;
+using System.Linq;
 using Nom.Language;
+using Nom.TypeChecker;
 
 namespace Nom.Bytecode
 {
-    public class ConstructorDefRep : TypeChecker.AParameterized, IConstructorSpec
+    public class ConstructorDefRep : AParameterized, IConstructorSpec
     {
         public ConstructorDefRep(IConstantRef<TypeListConstant> parameters, Visibility visibility, IEnumerable<IInstruction> preinstructions, IEnumerable<int> superCallArgsRegs, IEnumerable<IInstruction> postinstructions, int regcount)
         {
@@ -61,7 +61,7 @@ namespace Nom.Bytecode
                 i.WriteByteCode(ws);
             }
         }
-        public static ConstructorDefRep Read(Language.IClassSpec container, Stream s, IReadConstantSource rcs)
+        public static ConstructorDefRep Read(IClassSpec container, Stream s, IReadConstantSource rcs)
         {
             byte tag = s.ReadActualByte();
             if (tag != (byte)BytecodeInternalElementType.Constructor)

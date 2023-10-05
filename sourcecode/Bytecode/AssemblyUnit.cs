@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using Nom.Language;
-using System.IO;
 using Nom.Project;
-using System.IO.Compression;
 
 namespace Nom.Bytecode
 {
@@ -160,9 +160,17 @@ namespace Nom.Bytecode
         public INamespaceSpec GlobalNamespace { get; } = new NamespaceRep("", Optional<INamespaceSpec>.Empty);
 
         private List<BytecodeUnit> units = new List<BytecodeUnit>();
+
         public void AddUnit(BytecodeUnit bcu)
         {
             units.Add(bcu);
+        }
+
+        private List<INativeFile> nativeFiles = new List<INativeFile>();
+
+        public void AddNativeFile(INativeFile file)
+        {
+            nativeFiles.Add(file);
         }
 
         public IManifest Emit(Func<string, Stream> opener, bool ignoreManifestName)
@@ -171,33 +179,49 @@ namespace Nom.Bytecode
             List<IManifest.InterfaceInfo> interfaceInfos = new List<IManifest.InterfaceInfo>();
             Func<string, Stream> ILopener = s => opener(s + ".mnil");
             Func<string, Stream> manifestOpener = s => opener(s + ".manifest");
-            if(ignoreManifestName)
+            if (ignoreManifestName)
             {
                 manifestOpener = s => opener("default.manifest");
             }
+
+            foreach (var file in nativeFiles)
+            {
+                using var stream = opener(file.Path.Name);
+                stream.Write(File.ReadAllBytes(file.Path.FullName));
+            }
+
             foreach (BytecodeUnit bcu in units)
             {
                 bcu.Emit(ILopener);
                 foreach (var cls in bcu.Classes)
                 {
-                    classInfos.Add(new IManifest.ClassInfo() { Name = cls.FullQualifiedName, FileName = cls.FullQualifiedName + ".mnil" });
+                    classInfos.Add(new IManifest.ClassInfo
+                        { Name = cls.FullQualifiedName, FileName = cls.FullQualifiedName + ".mnil" });
                 }
+
                 foreach (var iface in bcu.Interfaces)
                 {
-                    interfaceInfos.Add(new IManifest.InterfaceInfo() { Name = iface.FullQualifiedName, FileName = iface.FullQualifiedName + ".mnil" });
+                    interfaceInfos.Add(new IManifest.InterfaceInfo
+                        { Name = iface.FullQualifiedName, FileName = iface.FullQualifiedName + ".mnil" });
                 }
             }
-            Manifest manifest = new Manifest(project.MainClassName.Length == 0 ? Optional<String>.Empty : project.MainClassName.InjectOptional(), Name, Version,
-                project.Dependencies.Select(nd => new IManifest.LibraryDependency() { Name = nd.QName, Version = nd.Version }),
+
+            Manifest manifest = new Manifest(
+                project.MainClassName.Length == 0 ? Optional<String>.Empty : project.MainClassName.InjectOptional(),
+                Name, Version,
+                project.Dependencies.Select(nd => new IManifest.LibraryDependency
+                    { Name = nd.QName, Version = nd.Version }),
                 classInfos,
-                interfaceInfos);
+                interfaceInfos,
+                nativeFiles);
             manifest.Emit(manifestOpener);
             return manifest;
         }
 
         public IManifest EmitToPath(DirectoryInfo path)
         {
-            Func<string, Stream> opener = s => new FileInfo(path + "/" + s).Open(FileMode.Create,FileAccess.Write,FileShare.Read);
+            Func<string, Stream> opener = s =>
+                new FileInfo(path + "/" + s).Open(FileMode.Create, FileAccess.Write, FileShare.Read);
             return Emit(opener, false);
         }
 
@@ -207,6 +231,7 @@ namespace Nom.Bytecode
             {
                 fi.Delete();
             }
+
             using (var zip = ZipFile.Open(fi.FullName, ZipArchiveMode.Create))
             {
                 Func<string, Stream> opener = s => zip.CreateEntry(s).Open();
@@ -214,7 +239,8 @@ namespace Nom.Bytecode
             }
         }
 
-        public IEnumerable<IParamRef<INamespaceSpec, P>> FindVarargsChildren<P>(IArgIdentifier<string, P> name) where P : ITypeArgument, ISubstitutable<P>
+        public IEnumerable<IParamRef<INamespaceSpec, P>> FindVarargsChildren<P>(IArgIdentifier<string, P> name)
+            where P : ITypeArgument, ISubstitutable<P>
         {
             yield break;
         }

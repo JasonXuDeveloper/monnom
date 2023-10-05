@@ -51,7 +51,7 @@ namespace NomLib
                     return new DirectoryInfo(filePath);
                 });
 
-            var archiveArgument = new Argument<bool>(name: "--archive",
+            var archiveArgument = new Argument<bool>(name: "archive",
                 description: $"Pack library as archive to output directory");
             archiveArgument.SetDefaultValue(false);
 

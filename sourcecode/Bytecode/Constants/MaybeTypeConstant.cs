@@ -1,8 +1,6 @@
-﻿using Nom.Language;
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using Nom.Language;
 
 namespace Nom.Bytecode
 {
@@ -13,7 +11,7 @@ namespace Nom.Bytecode
         {
             PotentialType = type;
         }
-        private IType value = null;
+        private IType value;
         public IType Value
         {
             get

@@ -12,7 +12,8 @@ namespace NomLib.Definition;
 public struct Class
 {
     public string FullQualifiedName;
-    public string FullQualifiedSuperClass;
+    public Super FullQualifiedSuperClass;
+    public List<Super> FullQualifiedSuperInterfaces;
     public bool IsInterface;
     public bool IsExpando;
     public bool IsShape;

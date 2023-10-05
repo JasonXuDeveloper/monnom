@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
-using Nom.Language;
-using System.Linq;
-using System.Xml.Linq;
 using System.Xml;
 
 namespace Nom.Bytecode
@@ -21,8 +17,10 @@ namespace Nom.Bytecode
                     throw new InvalidDataException();
                 }
             }
+
             return ret;
         }
+
         public static short AsShort(this string value, short defaultValue)
         {
             short ret = defaultValue;
@@ -33,12 +31,16 @@ namespace Nom.Bytecode
                     throw new InvalidDataException();
                 }
             }
+
             return ret;
         }
     }
+
     public class Manifest : IManifest
     {
-        public Manifest(IOptional<String> mainClass, string programName, Version version, IEnumerable<IManifest.LibraryDependency> dependencies, IEnumerable<IManifest.ClassInfo> clses, IEnumerable<IManifest.InterfaceInfo> ifaces)
+        public Manifest(IOptional<String> mainClass, string programName, Version version,
+            IEnumerable<IManifest.LibraryDependency> dependencies, IEnumerable<IManifest.ClassInfo> clses,
+            IEnumerable<IManifest.InterfaceInfo> ifaces, IEnumerable<INativeFile> nativeFiles)
         {
             MainClass = mainClass;
             ProgramName = programName;
@@ -46,6 +48,7 @@ namespace Nom.Bytecode
             Dependencies = dependencies;
             Classes = clses;
             Interfaces = ifaces;
+            NativeFiles = nativeFiles;
         }
 
         public Manifest(FileInfo file)
@@ -58,46 +61,52 @@ namespace Nom.Bytecode
                 var nomlib = doc.DocumentElement;
                 ProgramName = nomlib.GetAttribute("name");
                 Version = new Version(nomlib.GetAttribute("major").AsShort(1),
-                nomlib.GetAttribute("minor").AsShort(0),
-                nomlib.GetAttribute("revision").AsShort(0),
-                nomlib.GetAttribute("build").AsShort(0));
+                    nomlib.GetAttribute("minor").AsShort(0),
+                    nomlib.GetAttribute("revision").AsShort(0),
+                    nomlib.GetAttribute("build").AsShort(0));
                 var manifestVersion = nomlib.GetAttribute("fversion");
-                if(manifestVersion.Length>0)
+                if (manifestVersion.Length > 0)
                 {
                     int versionno;
-                    if(!int.TryParse(manifestVersion, out versionno))
+                    if (!int.TryParse(manifestVersion, out versionno))
                     {
                         throw new NomBytecodeException("Invalid Manifest Version");
                     }
-                    if(versionno>1)
+
+                    if (versionno > 1)
                     {
-                        throw new NomBytecodeException("Manifest was created with newer version of MonNom compiler - update required!");
+                        throw new NomBytecodeException(
+                            "Manifest was created with newer version of MonNom compiler - update required!");
                     }
                 }
+
                 var deps = nomlib.SelectNodes("./dependencies/dependency");
                 var clses = nomlib.SelectNodes("./classes/nomclass");
                 var ifaces = nomlib.SelectNodes("./interfaces/nominterface");
                 var maincls = nomlib.SelectNodes("./mainclass");
-                if(maincls.Count>0)
+                if (maincls.Count > 0)
                 {
-                    if(maincls.Count>1)
+                    if (maincls.Count > 1)
                     {
-                        Nom.CompilerOutput.Warn("Multiple main classes defined!");
+                        CompilerOutput.Warn("Multiple main classes defined!");
                     }
+
                     MainClass = ((XmlElement)maincls[0]).GetAttribute("name").InjectOptional();
                 }
                 else
                 {
                     MainClass = Optional<String>.Empty;
                 }
+
                 var classes = new List<IManifest.ClassInfo>();
                 foreach (var cls in clses)
                 {
                     var clselem = (XmlElement)cls;
                     var qname = clselem.GetAttribute("qname");
                     var filename = clselem.GetAttribute("file");
-                    classes.Add(new IManifest.ClassInfo(){ Name= qname, FileName= filename });
+                    classes.Add(new IManifest.ClassInfo { Name = qname, FileName = filename });
                 }
+
                 Classes = classes;
                 var interfaces = new List<IManifest.InterfaceInfo>();
                 foreach (var iface in ifaces)
@@ -105,17 +114,15 @@ namespace Nom.Bytecode
                     var ifaceelem = (XmlElement)iface;
                     var qname = ifaceelem.GetAttribute("qname");
                     var filename = ifaceelem.GetAttribute("file");
-                    interfaces.Add(new IManifest.InterfaceInfo() { Name = qname, FileName = filename });
+                    interfaces.Add(new IManifest.InterfaceInfo { Name = qname, FileName = filename });
                 }
+
                 Interfaces = interfaces;
                 Dependencies = new List<IManifest.LibraryDependency>();
             }
         }
 
-        public IOptional<String> MainClass
-        {
-            get;
-        }
+        public IOptional<String> MainClass { get; }
 
         public string ProgramName { get; }
         public Version Version { get; }
@@ -124,6 +131,7 @@ namespace Nom.Bytecode
 
         public IEnumerable<IManifest.ClassInfo> Classes { get; }
         public IEnumerable<IManifest.InterfaceInfo> Interfaces { get; }
+        public IEnumerable<INativeFile> NativeFiles { get; }
 
         public void Emit(Func<string, Stream> opener)
         {
@@ -132,29 +140,47 @@ namespace Nom.Bytecode
                 using (StreamWriter sw = new StreamWriter(fs))
                 {
                     sw.WriteLine("<?xml version=\"1.0\" encoding=\"ISO - 8859 - 1\" ?>");
-                    sw.WriteLine("<nomlibrary name = \"" + ProgramName + "\" major=\"" + Version.Major.ToString() + "\" minor=\"" + Version.Minor.ToString() + "\" revision=\"" + Version.Revision.ToString() + "\" build=\"" + Version.Build.ToString() + "\" fversion=\"2\" >");
+                    sw.WriteLine("<nomlibrary name = \"" + ProgramName + "\" major=\"" + Version.Major + "\" minor=\"" +
+                                 Version.Minor + "\" revision=\"" + Version.Revision + "\" build=\"" + Version.Build +
+                                 "\" fversion=\"2\" >");
                     if (MainClass.HasElem)
                     {
                         sw.WriteLine("<mainclass name = \"" + MainClass.Elem + "\" />");
                     }
+
                     sw.WriteLine("<dependencies>");
                     foreach (var dep in Dependencies)
                     {
-                        sw.WriteLine("<dependency major=\"" + dep.Version.Major.ToString() + "\" minor=\"" + dep.Version.Minor.ToString() + "\" revision=\"" + dep.Version.Revision.ToString() + "\" build=\"" + dep.Version.Build.ToString() + "\" name=\"" + dep.Name + "\"/>");
+                        sw.WriteLine("<dependency major=\"" + dep.Version.Major + "\" minor=\"" + dep.Version.Minor +
+                                     "\" revision=\"" + dep.Version.Revision + "\" build=\"" + dep.Version.Build +
+                                     "\" name=\"" + dep.Name + "\"/>");
                     }
+
                     sw.WriteLine("</dependencies>");
                     sw.WriteLine("<classes>");
                     foreach (var cls in Classes)
                     {
                         sw.WriteLine("<nomclass qname=\"" + cls.Name + "\" file=\"" + cls.FileName + "\"/>");
                     }
+
                     sw.WriteLine("</classes>");
                     sw.WriteLine("<interfaces>");
                     foreach (var iface in Interfaces)
                     {
                         sw.WriteLine("<nominterface qname=\"" + iface.Name + "\" file=\"" + iface.FileName + "\"/>");
                     }
+
                     sw.WriteLine("</interfaces>");
+                    
+                    
+                    sw.WriteLine("<nativefiles>");
+                    foreach (var file in NativeFiles)
+                    {
+                        sw.WriteLine("<file name=\"" + file.Path.Name + "\" platform=\"" + file.Platform + "\"/>");
+                    }
+
+                    sw.WriteLine("</nativefiles>");
+                    
                     sw.WriteLine("</nomlibrary > ");
                 }
             }

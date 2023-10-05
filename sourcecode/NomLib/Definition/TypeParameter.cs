@@ -10,5 +10,5 @@ namespace NomLib.Definition;
 public struct TypeParameter
 {
     public string Name;
-    public string ConstraintFullQualifiedType;
+    public Type Type;
 }

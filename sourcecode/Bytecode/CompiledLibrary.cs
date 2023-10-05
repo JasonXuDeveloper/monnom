@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
 using System.Linq;
-using System.Xml;
 using Nom.Language;
 
 namespace Nom.Bytecode
@@ -20,9 +18,9 @@ namespace Nom.Bytecode
             public readonly string Name;
             public readonly int ArgCount;
             public List<ProtoNamespace> Children = new List<ProtoNamespace>();
-            private InterfaceRep assignedInterface=null;
-            private ClassRep assignedClass=null;
-            private NamespaceRep assignedNamespace=null;
+            private InterfaceRep assignedInterface;
+            private ClassRep assignedClass;
+            private NamespaceRep assignedNamespace;
 
             public InterfaceRep AssignedInterface
             {

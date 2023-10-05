@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Linq;
 
 namespace Nom.Bytecode
@@ -10,7 +8,7 @@ namespace Nom.Bytecode
     {
         public TypeListConstant(ulong id, IEnumerable<IConstantRef<ITypeConstant>> types) : base(ConstantType.CTTypeList, id)
         {
-            this.TypeConstants = types.ToList();
+            TypeConstants = types.ToList();
         }
 
         public override IEnumerable<IConstant> Dependencies => TypeConstants.Select(tc=>tc.Constant);

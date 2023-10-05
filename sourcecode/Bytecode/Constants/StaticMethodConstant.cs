@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Nom.Bytecode
 {
@@ -26,7 +24,6 @@ namespace Nom.Bytecode
                 yield return ClassConstant.Constant;
                 yield return MethodNameConstant.Constant;
                 yield return TypeArgumentsConstant.Constant;
-                yield break;
             }
         }
 

@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Nom.Language;
+﻿using System.Collections.Generic;
 using System.Linq;
-using Nom.Language.SpecExtensions;
+using Nom.Language;
+using Nom.TypeChecker;
 
 namespace Nom.Bytecode
 {
-    public class NamespaceRep : TypeChecker.AParameterized, INamespaceSpec
+    public class NamespaceRep : AParameterized, INamespaceSpec
     {
         public NamespaceRep(string name, IOptional<INamespaceSpec> parentNamespace)
         {
@@ -21,7 +19,7 @@ namespace Nom.Bytecode
         protected override IOptional<IParameterizedSpec> ParamParent => ParentNamespace;
         public string Name { get; }
 
-        private static ITypeParametersSpec emptyPS = new TypeChecker.TypeParametersSpec(new List<ITypeParameterSpec>());
+        private static ITypeParametersSpec emptyPS = new TypeParametersSpec(new List<ITypeParameterSpec>());
         public override ITypeParametersSpec TypeParameters => emptyPS;
 
         private List<NamespaceRep> namespaces = new List<NamespaceRep>();
@@ -45,7 +43,7 @@ namespace Nom.Bytecode
             classes.Add(cls);
         }
 
-        public IEnumerable<INamespaceSpec> Children => Namespaces.Concat<INamespaceSpec>(Interfaces).Concat<INamespaceSpec>(Classes);
+        public IEnumerable<INamespaceSpec> Children => Namespaces.Concat(Interfaces).Concat(Classes);
 
         public IEnumerable<INamespaceSpec> PublicChildren => Children;
 

@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using System.Linq;
 using Nom.Language;
-using System.IO;
 using Nom.TypeChecker;
 
 namespace Nom.Bytecode
@@ -102,7 +101,7 @@ namespace Nom.Bytecode
                 LowerBound = lowerBound;
             }
         }
-        private ITypeParametersSpec tparams = null;
+        private ITypeParametersSpec tparams;
         public override ITypeParametersSpec TypeParameters
         {
             get
@@ -113,13 +112,13 @@ namespace Nom.Bytecode
                     int count = 0;
                     foreach(var entry in TypeParameterConstraintsConstant.Constant.Entries)
                     {
-                        paramList.Add(new TypeParamSpec(this, count, "T" + count.ToString()));
+                        paramList.Add(new TypeParamSpec(this, count, "T" + count));
                         count++;
                     }
                     tparams = new TypeParametersSpec(paramList);
                     foreach(var tpp in paramList.Zip(TypeParameterConstraintsConstant.Constant.Entries, (x,y)=>(x,y)))
                     {
-                        tpp.x.AdjustBounds(tpp.y.UpperBound.Constant.Value ?? Language.TopType.Instance, tpp.y.LowerBound.Constant.Value ?? Language.BotType.Instance);
+                        tpp.x.AdjustBounds(tpp.y.UpperBound.Constant.Value ?? TopType.Instance, tpp.y.LowerBound.Constant.Value ?? BotType.Instance);
                     }
                 }
                 return tparams;
@@ -167,7 +166,7 @@ namespace Nom.Bytecode
 
         public InterfaceRep(IConstantRef<StringConstant> nameConstant, IConstantRef<TypeParametersConstant> typeArgConstraints, IConstantRef<SuperInterfacesConstant> superInterfaces, bool isShape, Visibility visibility, AssemblyUnit au)
         {
-            this.NameConstant = nameConstant;
+            NameConstant = nameConstant;
             Visibility = visibility;
             IsShape = isShape;
             TypeParameterConstraintsConstant = typeArgConstraints;

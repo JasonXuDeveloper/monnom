@@ -1,12 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Nom.Language;
 using System.IO;
+using Nom.Language;
+using Nom.TypeChecker;
 
 namespace Nom.Bytecode
 {
-    public class MethodDeclRep : TypeChecker.AParameterized, IMethodRep
+    public class MethodDeclRep : AParameterized, IMethodRep
     {
         public MethodDeclRep(IConstantRef<StringConstant> name, IConstantRef<TypeParametersConstant> typeParameters, IConstantRef<ITypeConstant> returnType, IConstantRef<TypeListConstant> argumentTypes, Visibility visibility, bool isFinal)
         {
@@ -79,7 +78,7 @@ namespace Nom.Bytecode
 
         public virtual void WriteByteCodeBody(Stream ws)
         {
-            ws.WriteValue((int)0);
+            ws.WriteValue(0);
             ws.WriteValue((UInt64)0);
         }
 

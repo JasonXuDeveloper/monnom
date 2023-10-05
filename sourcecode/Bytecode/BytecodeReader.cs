@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.IO;
 
 namespace Nom.Bytecode
 {
     public class BytecodeReader : IReadConstantSource
     {
-        public BytecodeReader() { }
-
         public Version Version { get; }
 
         private class ConstantRef<T> : IConstantRef<T> where T : IConstant

@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using Nom.Parser;
 using System.IO;
-using System.Linq;
+using System.Text;
 
 namespace Nom.Bytecode
 {

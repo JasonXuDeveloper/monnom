@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Nom.Bytecode
 {
@@ -12,7 +11,7 @@ namespace Nom.Bytecode
         public static StringConstant EmptyStringConstant = new StringConstant("", 0);
         public StringConstant(String value, ulong id) : base(ConstantType.CTString, id)
         {
-            this.Value = value;
+            Value = value;
         }
         public string Value
         {
@@ -26,7 +25,7 @@ namespace Nom.Bytecode
 
         public override void EmitBody(Stream s)
         {
-            s.WriteUTF16Str(this.Value);
+            s.WriteUTF16Str(Value);
         }
 
         public override bool Equals(object obj)

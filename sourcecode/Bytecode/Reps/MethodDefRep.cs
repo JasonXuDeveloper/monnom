@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Linq;
 using System.IO;
+using System.Linq;
+using Nom.Language;
 
 namespace Nom.Bytecode
 {
@@ -30,7 +30,7 @@ namespace Nom.Bytecode
                 instr.WriteByteCode(ws);
             }
         }
-        public static MethodDefRep Read(Language.IClassSpec container, Stream s, IReadConstantSource rcs)
+        public static MethodDefRep Read(IClassSpec container, Stream s, IReadConstantSource rcs)
         {
             byte tag = s.ReadActualByte();
             if(tag!= (byte)BytecodeInternalElementType.Method)

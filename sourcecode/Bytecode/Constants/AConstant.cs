@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Nom.Bytecode
 {
@@ -11,7 +9,7 @@ namespace Nom.Bytecode
 
         public AConstant(ConstantType type, ulong id)
         {
-            this.Type = type;
+            Type = type;
             ConstantID = id;
         }
         

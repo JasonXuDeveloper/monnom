@@ -93,7 +93,7 @@ public static class CodeGenerator
                     var ctor = defClass.Constructors[i];
                     var ctorName = $"{className.ToLowerInvariant().Replace(".", "_")}_ctor_{i}";
                     List<(string type, string name)> ctorParams = ctor.Params?
-                        .Select(ctorParam => (ctorParam.FullQualifiedType.GetCppType(), ctorParam.Name)).ToList();
+                        .Select(ctorParam => (ctorParam.Type.FullQualifiedName.GetCppType(), ctorParam.Name)).ToList();
 
                     if (ctorParams == null) return $"{Config.Decl} void* {ctorName}();";
 
@@ -118,9 +118,9 @@ public static class CodeGenerator
                         .Select(typeParam => ("void*", $"typeParameter_{typeParam.Name.ToCamelCase()}")).ToList();
 
                     List<(string type, string name)> methodParams = method.Params?.Select(methodParam =>
-                        (methodParam.FullQualifiedType.GetCppType(), methodParam.Name)).ToList();
+                        (methodParam.Type.FullQualifiedName.GetCppType(), methodParam.Name)).ToList();
 
-                    var returnType = method.ReturnType.FullQualifiedType.GetCppType();
+                    var returnType = method.ReturnType.FullQualifiedName.GetCppType();
 
                     List<(string type, string name)> args = new();
                     if (!method.IsStatic)
@@ -178,7 +178,7 @@ Methods
                     var ctor = defClass.Constructors[i];
                     var ctorName = $"{className.ToLowerInvariant().Replace(".", "_")}_ctor_{i}";
                     List<(string type, string name)> ctorParams = ctor.Params?
-                        .Select(ctorParam => (ctorParam.FullQualifiedType.GetCppType(), ctorParam.Name)).ToList();
+                        .Select(ctorParam => (ctorParam.Type.FullQualifiedName.GetCppType(), ctorParam.Name)).ToList();
 
                     if (ctorParams == null)
                         return $"{Config.Decl} void* {ctorName}()\n" +
@@ -213,9 +213,9 @@ Methods
                         .Select(typeParam => ("void*", $"typeParameter_{typeParam.Name.ToCamelCase()}")).ToList();
 
                     List<(string type, string name)> methodParams = method.Params?.Select(methodParam =>
-                        (methodParam.FullQualifiedType.GetCppType(), methodParam.Name)).ToList();
+                        (methodParam.Type.FullQualifiedName.GetCppType(), methodParam.Name)).ToList();
 
-                    var returnType = method.ReturnType.FullQualifiedType.GetCppType();
+                    var returnType = method.ReturnType.FullQualifiedName.GetCppType();
 
                     List<(string type, string name)> args = new();
                     if (!method.IsStatic)
@@ -229,7 +229,7 @@ Methods
                     return
                         $"{Config.Decl} {returnType} {methodName}({string.Join(", ", args.Select(p => $"{p.type} {p.name.ToCamelCase()}"))})\n" +
                         "{\n" +
-                        $"    return {method.ReturnType.FullQualifiedType.GetDefaultReturnValue()};\n" +
+                        $"    return {method.ReturnType.FullQualifiedName.GetDefaultReturnValue()};\n" +
                         "}\n";
                 }));
 

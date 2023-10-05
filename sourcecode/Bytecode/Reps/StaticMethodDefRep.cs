@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
-using Nom.Language;
 using System.Linq;
-using Nom.Language.SpecExtensions;
+using Nom.Language;
+using Nom.TypeChecker;
 
 namespace Nom.Bytecode
 {
-    public class StaticMethodDefRep : TypeChecker.AParameterized, IStaticMethodSpec
+    public class StaticMethodDefRep : AParameterized, IStaticMethodSpec
     {
         public StaticMethodDefRep(IConstantRef<IStringConstant> name, IConstantRef<ITypeConstant> returnType, IConstantRef<TypeParametersConstant> typeParamConstraints, IConstantRef<TypeListConstant> parameters, Visibility visibility, IEnumerable<IInstruction> instructions, int regcount)
         {
@@ -46,7 +45,7 @@ namespace Nom.Bytecode
 
         protected override IOptional<IParameterizedSpec> ParamParent => Container.InjectOptional();
 
-        public void WriteByteCode(Stream ws)
+        public virtual void WriteByteCode(Stream ws)
         {
             ws.WriteByte((byte)BytecodeInternalElementType.StaticMethod);
             ws.WriteValue(NameConstant.ConstantID);
@@ -61,7 +60,7 @@ namespace Nom.Bytecode
             }
         }
 
-        public static StaticMethodDefRep Read(Language.IClassSpec container, Stream s, IReadConstantSource rcs)
+        public static StaticMethodDefRep Read(IClassSpec container, Stream s, IReadConstantSource rcs)
         {
             byte tag = s.ReadActualByte();
             if (tag != (byte)BytecodeInternalElementType.StaticMethod)

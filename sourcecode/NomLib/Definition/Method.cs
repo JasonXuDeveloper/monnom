@@ -17,6 +17,6 @@ public struct Method
     public bool IsVirtual;
     public bool IsFinal;
     public List<TypeParameter> TypeParameters;
-    public Return ReturnType;
-    public List<Param> Params;
+    public Type ReturnType;
+    public List<TypeParameter> Params;
 }

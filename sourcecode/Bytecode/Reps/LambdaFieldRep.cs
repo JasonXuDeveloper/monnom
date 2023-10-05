@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Nom.Language;
-using System.Linq;
-using System.IO;
+﻿using System.IO;
 
 namespace Nom.Bytecode
 {

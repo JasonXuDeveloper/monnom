@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.IO;
 
 namespace Nom.Bytecode
@@ -20,8 +17,8 @@ namespace Nom.Bytecode
 
         public InterfaceConstant(ulong id, IConstantRef<StringConstant> libNameConstant, IConstantRef<StringConstant> nameConstant) : base(ConstantType.CTInterface, id)
         {
-            this.NameConstant = nameConstant;
-            this.LibraryNameConstant = libNameConstant;
+            NameConstant = nameConstant;
+            LibraryNameConstant = libNameConstant;
         }
         public IConstantRef<StringConstant> LibraryNameConstant
         {
@@ -52,7 +49,7 @@ namespace Nom.Bytecode
         {
             get
             {
-                List<IConstant> ret = new List<IConstant>() { LibraryNameConstant.Constant, NameConstant.Constant };
+                List<IConstant> ret = new List<IConstant> { LibraryNameConstant.Constant, NameConstant.Constant };
                 //if (this.ParentConstant.HasElem)
                 //{
                 //    ret.Add(this.ParentConstant.Elem.Constant);

@@ -10,7 +10,7 @@ namespace NomLib.Definition;
 public struct Field
 {
     public string Name;
-    public string FullQualifiedType;
+    public Type Type;
     public string Visibility;
     public bool IsStatic;
     public bool IsReadOnly;

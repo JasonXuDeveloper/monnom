@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.IO;
+﻿using System.IO;
+using Nom.Parser;
 
 namespace Nom.Bytecode
 {
@@ -9,8 +7,8 @@ namespace Nom.Bytecode
     {
         public int Arg { get; }
         public int Register { get; }
-        public Nom.Parser.UnaryOperator Operator { get; }
-        public UnaryOpInstruction(Nom.Parser.UnaryOperator op, int arg, int reg) : base(OpCode.UnaryOp)
+        public UnaryOperator Operator { get; }
+        public UnaryOpInstruction(UnaryOperator op, int arg, int reg) : base(OpCode.UnaryOp)
         {
             Operator = op;
             Arg = arg;
@@ -26,7 +24,7 @@ namespace Nom.Bytecode
 
         public static UnaryOpInstruction Read(Stream s, IReadConstantSource rcs)
         {
-            var op = (Nom.Parser.UnaryOperator)s.ReadActualByte();
+            var op = (UnaryOperator)s.ReadActualByte();
             var arg = s.ReadInt();
             var reg = s.ReadInt();
             return new UnaryOpInstruction(op, arg, reg);

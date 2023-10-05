@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using Nom.TypeChecker;
+﻿using System.IO;
+using Nom.Parser;
 
 namespace Nom.Bytecode
 {
@@ -11,8 +8,8 @@ namespace Nom.Bytecode
         public int Left { get; }
         public int Right { get; }
         public int Register { get; }
-        public Nom.Parser.BinaryOperator Operator { get; }
-        public BinOpInstruction(Nom.Parser.BinaryOperator op, int left, int right, int reg) : base(OpCode.BinOp)
+        public BinaryOperator Operator { get; }
+        public BinOpInstruction(BinaryOperator op, int left, int right, int reg) : base(OpCode.BinOp)
         {
             Operator = op;
             Left = left;
@@ -30,7 +27,7 @@ namespace Nom.Bytecode
 
         public static BinOpInstruction Read(Stream s, IReadConstantSource rcs)
         {
-            var op = (Nom.Parser.BinaryOperator)s.ReadActualByte();
+            var op = (BinaryOperator)s.ReadActualByte();
             var left = s.ReadInt();
             var right = s.ReadInt();
             var reg = s.ReadInt();
