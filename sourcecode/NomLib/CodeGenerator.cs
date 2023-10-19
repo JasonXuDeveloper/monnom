@@ -36,6 +36,7 @@ public static class CodeGenerator
         //classes
         foreach (var defClass in libDef.Classes)
         {
+            if (defClass.IsInterface) continue;
             var dir = new DirectoryInfo(Path.Combine(output.FullName, defClass.FullQualifiedName));
             if (!dir.Exists)
             {
@@ -53,6 +54,7 @@ public static class CodeGenerator
         var refTemplate =
             $"""
 //#include "monnom_lib.h"
+#include <inttypes.h>
 
 {string.Join("\n", libDef.References?.Select(r => $"{Config.Decl} void* {r.Alias};") ??
                    Array.Empty<string>())}

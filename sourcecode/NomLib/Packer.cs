@@ -46,7 +46,7 @@ public class Packer
             var className = defClass.FullQualifiedName;
             var filename = $"{className.ToLowerInvariant().Replace(".", "_")}.bc";
             var llvmFile = new FileInfo(Path.Combine(input.FullName, filename));
-            if (!llvmFile.Exists)
+            if (!llvmFile.Exists && !defClass.IsInterface)
             {
                 Console.WriteLine($"File {llvmFile.FullName} does not exist, please generate first");
                 continue;

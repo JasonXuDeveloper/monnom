@@ -38,6 +38,7 @@ public static class Compiler
         //classes
         foreach (var defClass in libDef.Classes)
         {
+            if (defClass.IsInterface) continue;
             //corresponded cpp file
             var dir = new DirectoryInfo(Path.Combine(input.FullName, defClass.FullQualifiedName));
             if (!dir.Exists)

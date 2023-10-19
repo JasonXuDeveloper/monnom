@@ -18,10 +18,10 @@ public static class Util
     {
         if (fullQualifiedType == Config.StdIntType)
         {
-            return "int";
+            return "int64_t";
         }
 
-        return fullQualifiedType == Config.StdFloatType ? "float" : "void*";
+        return fullQualifiedType == Config.StdFloatType ? "double" : "void*";
     }
     
     public static string GetDefaultReturnValue(this string fullQualifiedType)
@@ -31,6 +31,6 @@ public static class Util
             return "0";
         }
 
-        return fullQualifiedType == Config.StdFloatType ? "0.0f" : "nullptr";
+        return fullQualifiedType == Config.StdFloatType ? "0.0" : "nullptr";
     }
 }
