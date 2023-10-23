@@ -129,7 +129,7 @@ public class Packer
         Super superClass = nomClass.FullQualifiedSuperClass;
 
         //super class
-        var superClassClassConstant = string.IsNullOrEmpty(superClass.FullQualifiedName)
+        var superClassClassConstant = nomClass.IsInterface || string.IsNullOrEmpty(superClass.FullQualifiedName)
             ? bytecodeUnit.GetEmptyClassConstant()
             : bytecodeUnit.GetClassConstant(superClass.FullQualifiedName, superClass.LibraryName);
         var superClassTypeListConstant =
@@ -141,14 +141,17 @@ public class Packer
 
         //super interfaces
         List<(IConstantRef<IInterfaceConstant> iCon, IConstantRef<TypeListConstant> tCon)> superInterfaces = new();
-        foreach (var superInterface in nomClass.FullQualifiedSuperInterfaces)
+        if (!nomClass.IsInterface)
         {
-            var superInterfaceClassConstant =
-                bytecodeUnit.GetInterfaceConstant(superInterface.FullQualifiedName, superInterface.LibraryName);
-            var superInterfaceTypeListConstant =
-                GetTypeList(superInterface.TypeArguments.Select(arg => GetTypeArgument(arg, bytecodeUnit)),
-                    bytecodeUnit);
-            superInterfaces.Add((superInterfaceClassConstant, superInterfaceTypeListConstant));
+            foreach (var superInterface in nomClass.FullQualifiedSuperInterfaces)
+            {
+                var superInterfaceClassConstant =
+                    bytecodeUnit.GetInterfaceConstant(superInterface.FullQualifiedName, superInterface.LibraryName);
+                var superInterfaceTypeListConstant =
+                    GetTypeList(superInterface.TypeArguments.Select(arg => GetTypeArgument(arg, bytecodeUnit)),
+                        bytecodeUnit);
+                superInterfaces.Add((superInterfaceClassConstant, superInterfaceTypeListConstant));
+            }
         }
 
         var superInterfacesConstant = bytecodeUnit.GetSuperInterfacesConstant(superInterfaces);
@@ -162,33 +165,36 @@ public class Packer
             superInterfacesConstant,
             true, false, nomClass.IsShape, Enum.Parse<Visibility>(nomClass.Visibility), bytecodeUnit.AssemblyUnit);
 
-        foreach (var field in nomClass.Fields)
+        if (!nomClass.IsInterface)
         {
-            FieldRep fieldRep = new FieldRep(classRep, bytecodeUnit.GetStringConstant(field.Name),
-                GetTypeArgument(field.Type, bytecodeUnit),
-                field.IsReadOnly, field.IsVolatile,
-                Enum.Parse<Visibility>(field.Visibility));
-            classRep.AddField(fieldRep);
-        }
-
-        foreach (var constructor in nomClass.Constructors)
-        {
-            var ctorName =
-                $"{nomClass.FullQualifiedName.ToLowerInvariant().Replace(".", "_")}_ctor_{nomClass.Constructors.IndexOf(constructor)}";
-            CppStaticMethodDefRep cppStaticMethodDefRep = new CppStaticMethodDefRep(
-                bytecodeUnit.GetStringConstant(ctorName),
-                bytecodeUnit.GetStringConstant(ctorName),
-                GetTypeArgument(new Type()
-                {
-                    Kind = "Class",
-                    FullQualifiedName = nomClass.FullQualifiedName,
-                    LibraryName = def.LibraryName
-                }, bytecodeUnit),
-                typeParameters,
-                GetTypeList(constructor.Params.Select(param => GetTypeArgument(param.Type, bytecodeUnit)),
-                    bytecodeUnit),
-                Visibility.Public);
-            classRep.AddStaticMethod(cppStaticMethodDefRep);
+            foreach (var field in nomClass.Fields)
+            {
+                FieldRep fieldRep = new FieldRep(classRep, bytecodeUnit.GetStringConstant(field.Name),
+                    GetTypeArgument(field.Type, bytecodeUnit),
+                    field.IsReadOnly, field.IsVolatile,
+                    Enum.Parse<Visibility>(field.Visibility));
+                classRep.AddField(fieldRep);
+            }
+            
+            foreach (var constructor in nomClass.Constructors)
+            {
+                var ctorName =
+                    $"{nomClass.FullQualifiedName.ToLowerInvariant().Replace(".", "_")}_ctor_{nomClass.Constructors.IndexOf(constructor)}";
+                CppStaticMethodDefRep cppStaticMethodDefRep = new CppStaticMethodDefRep(
+                    bytecodeUnit.GetStringConstant(ctorName),
+                    bytecodeUnit.GetStringConstant(ctorName),
+                    GetTypeArgument(new Type()
+                    {
+                        Kind = "Class",
+                        FullQualifiedName = nomClass.FullQualifiedName,
+                        LibraryName = def.LibraryName
+                    }, bytecodeUnit),
+                    typeParameters,
+                    GetTypeList(constructor.Params.Select(param => GetTypeArgument(param.Type, bytecodeUnit)),
+                        bytecodeUnit),
+                    Visibility.Public);
+                classRep.AddStaticMethod(cppStaticMethodDefRep);
+            }
         }
 
         foreach (var method in nomClass.Methods)
